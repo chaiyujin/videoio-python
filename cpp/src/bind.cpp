@@ -18,5 +18,6 @@ NB_MODULE(ffms, m) {
         .def(nb::init<std::string, std::string>())
         .def_property_readonly("n_frames", &VideoReader::numFrames)
         .def("read", &VideoReader::read)
+        .def("seek_frame", &VideoReader::seekFrame)
     ;
 }

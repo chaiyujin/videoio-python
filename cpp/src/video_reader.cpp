@@ -21,7 +21,7 @@ bool VideoReader::_openFile(std::string _filepath, std::string _pix_fmt) {
     }
 
     /* We now have enough information to create the video source object */
-    vid_src_ = FFMS_CreateVideoSource(_filepath.c_str(), trackno, index, 1, FFMS_SEEK_NORMAL, &errinfo_);
+    vid_src_ = FFMS_CreateVideoSource(_filepath.c_str(), trackno, index, 0, FFMS_SEEK_NORMAL, &errinfo_);
     if (vid_src_ == NULL) {
         /* handle error */
     }

@@ -1,6 +1,29 @@
 #include "read_video.hpp"
 #include "timer.hpp"
 
+static void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
+    FILE *pFile;
+    char szFilename[32];
+    int  y;
+    
+    // Open file
+    sprintf(szFilename, "hello/frame%d.ppm", iFrame);
+
+    pFile=fopen(szFilename, "wb");
+    if(pFile==NULL)
+        return;
+    
+    // Write header
+    fprintf(pFile, "P6\n%d %d\n255\n", width, height);
+    
+    // Write pixel data
+    for(y=0; y<height; y++)
+        fwrite(pFrame->data[0]+y*pFrame->linesize[0], 1, width*3, pFile);
+    
+    // Close file
+    fclose(pFile);
+}
+
 bool Reader::open(std::string _filepath, Config _cfg) {
     int ret;
 
@@ -37,8 +60,7 @@ bool Reader::open(std::string _filepath, Config _cfg) {
     // Open streams
     int n_video_streams = 0;
     int n_audio_streams = 0;
-    for (uint32_t i = 0; i < fmt_ctx_->nb_streams; i++)
-    {
+    for (uint32_t i = 0; i < fmt_ctx_->nb_streams; i++) {
         // allocate decoder codec
         AVStream *      stream     = fmt_ctx_->streams[i];
         auto            codec_id   = stream->codecpar->codec_id;
@@ -84,8 +106,18 @@ bool Reader::open(std::string _filepath, Config _cfg) {
         // if video
         if (dec_ctx->codec_type == AVMEDIA_TYPE_VIDEO) {
             dec_ctx->framerate = av_guess_frame_rate(fmt_ctx_.get(), stream, NULL);
-            spdlog::debug("stream {}, video, fps: {}", i, dec_ctx->framerate);
+            // spdlog::debug("stream {}, video, fps: {}", i, dec_ctx->framerate);
         }
+
+        // set codec to automatically determine how many threads suits best for the decoding job
+        dec_ctx->thread_count = 0;
+        if (dec->capabilities | AV_CODEC_CAP_FRAME_THREADS)
+            dec_ctx->thread_type = FF_THREAD_FRAME;
+        else if (dec->capabilities | AV_CODEC_CAP_SLICE_THREADS)
+            dec_ctx->thread_type = FF_THREAD_SLICE;
+        else
+            dec_ctx->thread_count = 1; //don't use multithreading
+        spdlog::warn("codec ctx thread: {}", dec_ctx->thread_count);
 
         // Open decoder
         ret = avcodec_open2(dec_ctx, dec, NULL);
@@ -117,7 +149,7 @@ bool Reader::open(std::string _filepath, Config _cfg) {
                 ? int2({ (int32_t)dec_ctx->width, (int32_t)dec_ctx->height })
                 : config.video.resolution;
             config.video.fps = {dec_ctx->framerate.num, dec_ctx->framerate.den};
-            config.video.bpp = (config.video.bpp == 0) ? 4 : config.video.bpp;
+            config.video.bpp = (config.video.bpp == 0) ? 3 : config.video.bpp;
 
             // rotation
             auto * rotateTag = av_dict_get(st->stream()->metadata, "rotate", NULL, 0);
@@ -129,8 +161,7 @@ bool Reader::open(std::string _filepath, Config _cfg) {
             case 3: PixelFormat = AV_PIX_FMT_RGB24; break;
             case 4: PixelFormat = AV_PIX_FMT_RGBA;  break;
             default:
-                PixelFormat = AV_PIX_FMT_RGBA;
-                spdlog::warn("[ffmpeg::Reader]: unknown bpp {}, set to 4.", config.video.bpp);
+                spdlog::error("[ffmpeg::Reader]: unknown bpp", config.video.bpp);
             }
 
             st->set_tmp_frame(AllocateFrame(
@@ -200,20 +231,15 @@ int Reader::_processInput() {
     }
 
     // read frame
-    {
-        Timeit _("av_read_frame");
-        ret = av_read_frame(fmt_ctx_.get(), &pkt);
-    }
+    ret = av_read_frame(fmt_ctx_.get(), &pkt);
     if (ret == AVERROR(EAGAIN)) {
         err_again_ = true;
         av_packet_unref(&pkt);
         return ret;
     }
 
-    // push null frame, as end
+    // end
     if (ret == AVERROR_EOF) {
-        // for (auto &q: video_queues_) q->push(_FrameImage());
-        // for (auto &q: audio_queues_) q->push(_FrameAudio());
         av_packet_unref(&pkt);
         return ret;
     }
@@ -221,43 +247,45 @@ int Reader::_processInput() {
     // process frame
     auto & st = input_streams_[pkt.stream_index];
     if (!st) {
-        err_again_ = true;  // !HACK: abuse err_again_ here, it's a not need stream
+        err_again_ = true;  // !HACK: abuse err_again_ here, it's a not needed stream
         return ret;
     }
 
+    bool keyframe = !!(pkt.flags & AV_PKT_FLAG_KEY);
+    // spdlog::info("keyframe? {}, {}, {}", keyframe, pkt.pts, pkt.dts);
+
     // video
     if (st->type() == AVMEDIA_TYPE_VIDEO) {
-        // spdlog::debug("try decode video");
-        {
-            Timeit _("Decode");
-            Decode(st->codec_ctx(), st->frame(), &got_frame, &pkt);
-        }
+        Decode(st->codec_ctx(), st->frame(), &got_frame, &pkt);
 
         if (got_frame) {
             int64_t pts = st->frame()->best_effort_timestamp;
-            AVFrame *frame = st->frame();
+            frame_ = st->frame();
             if (st->sws_ctx()) {
-                Timeit _("sws_scale");
+                // Timeit _("sws_scale");
                 sws_scale(st->sws_ctx(),
                           (const uint8_t * const *)st->frame()->data,
                           st->frame()->linesize, 0,
                           st->frame()->height,
                           st->tmp_frame()->data,
                           st->tmp_frame()->linesize);
-                frame = st->tmp_frame();
+                frame_ = st->tmp_frame();
             }
+            frame_->pts = pts;
             // spdlog::debug(
-            //     "frame linesize: {}, width: {}, widthx4: {}",
-            //     frame->linesize[0],
-            //     frame->width,
-            //     frame->width*4
+            //     "frame linesize: {}, width: {}, widthx4: {}, pts: {}",
+            //     frame_->linesize[0],
+            //     frame_->width,
+            //     frame_->width*4,
+            //     frame_->pts
             // );
             // spdlog::debug("st {} (video): pts {}", pkt.stream_index, pts);
             // video_queues_[st->video_stream_idx_]->push(video_frame);
             // last_pts_list_[video_queues_stream_indices_[st->video_stream_idx_]] = video_frame.timestamp;
         }
     }
-    else {
+    
+    if (got_frame != 1) {
         err_again_ = true;  // !HACK: abuse err_again
     }
 
@@ -265,20 +293,17 @@ int Reader::_processInput() {
     return ret;
 }
 
-bool Reader::read(size_t _track_idx) {
+bool Reader::read() {
     if (!is_open()) {
         return false;
     }
 
-    // if (_track >= video_queues_.size()) {
-    //     log::warning("[ffmpeg::Reader]: video track {} is out of range [0, {})",
-    //                  _track, video_queues_.size());
-    //     return false;
-    // }
-
     bool got = false;
     do {
         int ret = this->_processInput();
+        if (ret == AVERROR_EOF) {
+            return false;
+        }
         // need to decode again
         if (err_again_ && ret != AVERROR_EOF) {
             continue;
@@ -290,23 +315,106 @@ bool Reader::read(size_t _track_idx) {
     return true;
 }
 
+int32_t Reader::framePtsToIndex(int64_t _timestamp) {
+    // todo: which stream
+    size_t sidx = 0;
+    auto * stream = input_streams_[sidx]->stream();
+    auto * dec_ctx = input_streams_[sidx]->codec_ctx();
+    auto const & fps = input_streams_[sidx]->config().video.fps;
 
-int main() {
+    auto inv_fps = AVRational{fps.den, fps.num};
+    auto frame_idx = av_rescale_q(_timestamp - stream->start_time, stream->time_base, inv_fps);
+    // spdlog::info("ts {}, tbs {}, inv_fps {}, fps {}", _timestamp, stream->time_base, inv_fps, dec_ctx->framerate);
+    return frame_idx;
+}
+
+int32_t Reader::timestampToFrameIndex(int64_t _timestamp) {
+    // todo: which stream
+    size_t sidx = 0;
+    auto * stream = input_streams_[sidx]->stream();
+    auto * dec_ctx = input_streams_[sidx]->codec_ctx();
+    auto const & fps = input_streams_[sidx]->config().video.fps;
+
+    auto inv_fps = AVRational{fps.den, fps.num};
+    auto frame_idx = av_rescale_q(_timestamp - stream->start_time, stream->time_base, inv_fps);
+    return frame_idx;
+}
+
+int64_t Reader::frameIndexToTimestamp(int32_t _frame_idx) {
+    // todo: which stream
+    size_t sidx = 0;
+    auto * stream = input_streams_[sidx]->stream();
+    auto const & fps = input_streams_[sidx]->config().video.fps;
+
+    auto inv_fps = AVRational{fps.den, fps.num};
+    auto timestamp = av_rescale_q(_frame_idx, inv_fps, stream->time_base) + stream->start_time;
+    return timestamp;
+}
+
+bool Reader::seek(int32_t _frame_idx) {
+    // todo: which stream
+    size_t sidx = 0;
+    auto * handle = fmt_ctx_.get();
+    auto * stream = input_streams_[sidx]->stream();
+    auto * dec_ctx = input_streams_[sidx]->codec_ctx();
+
+    // get fps
+    auto timestamp = frameIndexToTimestamp(_frame_idx);
+    spdlog::debug("seek frame: {}, ts: {}, {}", _frame_idx, timestamp, timestampToFrameIndex(timestamp));
+
+    int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
+    spdlog::debug("seek? {}", ret);
+
+    return false;
+}
+
+int main(int argc, char *argv[]) {
     spdlog::set_level(spdlog::level::debug);
 
     Reader reader;
-    if (!reader.open("/Users/chaiyujin/Movies/test_4k.webm")) {
+    Config cfg;
+    cfg.video.resolution = {320, 180};
+    if (!reader.open(argv[1], cfg)) {
         spdlog::error("Failed to open video!");
     }
 
     bool got = false;
 
-    for (int i = 0; i < 10; ++i) {
-        {
-            Timeit _("read");
-            got = reader.read();
-        }
-    }
+    // // for (int i = 0; i < 10; ++i) {
+    // int i = 0;
+    // while (true) {
+    //     {
+    //         Timeit _("read");
+    //         got = reader.read();
+    //     }
+    //     if (!got) {
+    //         break;
+    //     }
+    //     SaveFrame(
+    //         reader.frame_,
+    //         reader.frame_->width,
+    //         reader.frame_->height,
+    //         i
+    //     );
+    //     i += 1;
+    // }
+
+    int32_t tar = 300;
+    reader.seek(tar);
+    int32_t cur = -1;
+    do {
+        got = reader.read();
+        cur = reader.framePtsToIndex(reader.frame_->pts);
+        spdlog::info("Got frame at {}, {}", reader.frame_->pts, cur);
+    } while(cur < tar);
+
+    // for (int i = 0; i < 10; ++i) {
+    //     {
+    //         // Timeit _("read");
+    //         got = reader.read();
+    //         spdlog::info("Got frame at {}", reader.frame_->pts);
+    //     }
+    // }
 
     return 0;
 }

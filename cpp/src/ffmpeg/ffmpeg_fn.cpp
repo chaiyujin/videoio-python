@@ -1,4 +1,5 @@
 #include "ffmpeg_fn.hpp"
+#include "../timer.hpp"
 
 static int32_t _gLogLevel = -1;
 
@@ -27,10 +28,16 @@ int Decode(
     // This relies on the fact that the decoder will not buffer additional
     // packets internally, but returns AVERROR(EAGAIN) if there are still
     // decoded frames to be returned.
-    ret = avcodec_send_packet(avctx, pkt);
+    {
+        // Timeit _("send packet");
+        ret = avcodec_send_packet(avctx, pkt);
+    }
     if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) return ret;
     if (ret >= 0) consumed = pkt->size;
-    ret = avcodec_receive_frame(avctx, frame);
+    {
+        // Timeit _("receive frame");
+        ret = avcodec_receive_frame(avctx, frame);
+    }
     if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) return ret;
     if (ret >= 0) *gotFrame = 1;
     return consumed;

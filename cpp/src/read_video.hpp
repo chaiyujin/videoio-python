@@ -56,9 +56,11 @@ public:
 };
 
 class Reader {
+public:
     bool is_open_;
     // for decoding
     bool err_again_;
+    AVFrame * frame_;
     // ffmpeg related
     std::unique_ptr<AVFormatContext, void(*)(AVFormatContext *ctx)> fmt_ctx_;
     std::vector<std::unique_ptr<InputStream>> input_streams_;
@@ -67,6 +69,7 @@ class Reader {
         is_open_ = false;
         // decoding
         err_again_ = false;
+        frame_ = nullptr;  // handled by creators (stream)
         // ffmpeg related, must be cleaned in correct order.
         input_streams_.clear();
         fmt_ctx_.reset(nullptr);
@@ -74,10 +77,10 @@ class Reader {
 
     int _processInput();
 
-public:
     Reader()
         : is_open_(false)
         , err_again_(false)
+        , frame_(nullptr)
         , fmt_ctx_(nullptr, AVFormatContextDeleter)
         , input_streams_()
     { _cleanup(); }
@@ -85,6 +88,10 @@ public:
     bool is_open() const { return is_open_; }
 
     bool open(std::string _filepath, Config _cfg = Config());
-    bool read(size_t _track_idx = 0);
+    bool read();
+    bool seek(int32_t _frame_idx);
 
+    int32_t timestampToFrameIndex(int64_t);
+    int64_t frameIndexToTimestamp(int32_t);
+    int32_t framePtsToIndex(int64_t);
 };
