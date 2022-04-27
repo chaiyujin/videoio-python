@@ -104,20 +104,18 @@
 if (NOT FFmpeg_INSTALL_PATH)
     if (UNIX)   # macos or Linux using Home
         set(FFmpeg_INSTALL_PATH "$ENV{HOME}/Software/ffmpeg_build")
-        set(FFmpeg_INCLUDE_DIR  "${FFmpeg_INSTALL_PATH}/include")
-        set(FFmpeg_LINK_DIR     "${FFmpeg_INSTALL_PATH}/lib")
     else()
         if (MSVC)  # compile by msvc in msys2
             set(FFmpeg_INSTALL_PATH "C:\\msys64\\Software\\ffmpeg_build")
-            set(FFmpeg_INCLUDE_DIR  "${FFmpeg_INSTALL_PATH}/include")
-            set(FFmpeg_LINK_DIR     "${FFmpeg_INSTALL_PATH}/bin")
         else()  # install by msys2  pacman -Sy mingw-w64-x86_64-ffmpeg
             set(FFmpeg_INSTALL_PATH "C:\\msys64\\mingw64")
-            set(FFmpeg_INCLUDE_DIR  "${FFmpeg_INSTALL_PATH}/include")
-            set(FFmpeg_LINK_DIR     "${FFmpeg_INSTALL_PATH}/lib")
         endif(MSVC)
     endif()
 endif ()
+
+set(FFmpeg_INCLUDE_DIR  "${FFmpeg_INSTALL_PATH}/include")
+set(FFmpeg_LINK_DIR     "${FFmpeg_INSTALL_PATH}/lib")
+message(STATUS ${FFmpeg_INSTALL_PATH})
 
 # Find all components if not specificly asked
 if (NOT FFmpeg_FIND_COMPONENTS)

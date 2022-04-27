@@ -1,5 +1,5 @@
 #include "video_reader.hpp"
-#include "log_timeit.hpp"
+#include <timer.hpp>
 namespace nb = nanobind;
 
 bool VideoReader::_openFile(std::string _filepath, std::string _pix_fmt) {

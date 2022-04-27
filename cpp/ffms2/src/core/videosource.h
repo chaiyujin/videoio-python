@@ -97,7 +97,6 @@ private:
     FFMS_Frame *OutputFrame(AVFrame *Frame);
     void SetVideoProperties();
     bool DecodePacket(AVPacket *Packet);
-    void DecodeNextFrame(int64_t &PTS, int64_t &Pos);
     bool SeekTo(int n, int SeekOffset);
     int Seek(int n);
     int ReadFrame(AVPacket *pkt);
@@ -107,6 +106,7 @@ public:
     FFMS_VideoSource(const char *SourceFile, FFMS_Index &Index, int Track, int Threads, int SeekMode);
     ~FFMS_VideoSource();
     const FFMS_VideoProperties& GetVideoProperties() { return VP; }
+    void DecodeNextFrame(int64_t &PTS, int64_t &Pos);
     FFMS_Track *GetTrack() { return &Frames; }
     FFMS_Frame *GetFrame(int n);
     void GetFrameCheck(int n);

@@ -24,6 +24,8 @@
 #include <algorithm>
 #include <thread>
 
+#include <timer.hpp>
+
 
 void FFMS_VideoSource::SanityCheckFrameForData(AVFrame *Frame) {
     for (int i = 0; i < 4; i++) {
@@ -755,11 +757,15 @@ bool FFMS_VideoSource::SeekTo(int n, int SeekOffset) {
 }
 
 FFMS_Frame *FFMS_VideoSource::GetFrame(int n) {
+    Timer timer;
+
     GetFrameCheck(n);
     n = Frames.RealFrameNumber(n);
 
     if (LastFrameNum == n)
         return &LocalFrame;
+
+    printf("  0: check is last frame %.3f \n", timer.duration());
 
     int SeekOffset = 0;
     bool Seek = true;
@@ -770,11 +776,14 @@ FFMS_Frame *FFMS_VideoSource::GetFrame(int n) {
             HasSeeked = SeekTo(n, SeekOffset);
             Seek = false;
         }
+        printf("  1: check HasSeeked %.3f \n", timer.duration());
 
         int64_t StartTime = AV_NOPTS_VALUE, FilePos = -1;
         bool Hidden = (((unsigned) CurrentFrame < Frames.size()) && Frames[CurrentFrame].Hidden);
         if (HasSeeked || !Hidden || PAFFAdjusted)
             DecodeNextFrame(StartTime, FilePos);
+
+        printf("  2: DecodeNextFrame %.3f \n", timer.duration());
 
         if (!HasSeeked)
             continue;
@@ -821,5 +830,8 @@ FFMS_Frame *FFMS_VideoSource::GetFrame(int n) {
     } while (++CurrentFrame <= n);
 
     LastFrameNum = n;
-    return OutputFrame(DecodeFrame);
+
+    auto ret = OutputFrame(DecodeFrame);
+    printf("  9: Prepare to return %.3f \n", timer.duration());
+    return ret;
 }
