@@ -17,7 +17,7 @@ inline Second      operator ""_sec (unsigned long long val) { Second      ret = 
 inline Minute      operator ""_min (unsigned long long val) { Minute      ret = Minute     ((int64_t)val); return ret; }
 inline Hour        operator ""_hour(unsigned long long val) { Hour        ret = Hour       ((int64_t)val); return ret; }
 
-using Timestamp = Microsecond;
+using Timestamp = Millisecond;
 // define no time stamp
 constexpr Timestamp kNoTimestamp(((int64_t)UINT64_C(0x8000000000000000)));
 constexpr int64_t kRatioOfSecondToTimestamp = (int64_t)1000000;

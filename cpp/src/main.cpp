@@ -1,59 +1,50 @@
-#include <ffms.h>
-#include <string>
-#include <iostream>
+#include "read_video.hpp"
 
-int main() {
-    std::string _fpath = "/Users/chaiyujin/Movies/hello.flv";
+static void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
+    FILE *pFile;
+    char szFilename[32];
+    int  y;
+    
+    // Open file
+    sprintf(szFilename, "hello/frame%d.ppm", iFrame);
 
-    FFMS_ErrorInfo errinfo_;
+    pFile=fopen(szFilename, "wb");
+    if(pFile==NULL)
+        return;
+    
+    // Write header
+    fprintf(pFile, "P6\n%d %d\n255\n", width, height);
+    
+    // Write pixel data
+    for(y=0; y<height; y++)
+        fwrite(pFrame->data[0]+y*pFrame->linesize[0], 1, width*3, pFile);
+    
+    // Close file
+    fclose(pFile);
+}
 
-    FFMS_Indexer * indexer = FFMS_CreateIndexer(_fpath.c_str(), &errinfo_);
-    FFMS_Index   * _index  = FFMS_DoIndexing2(indexer, FFMS_IEH_ABORT, &errinfo_);
+int main(int argc, char *argv[]) {
+    spdlog::set_level(spdlog::level::debug);
 
-    /* We now have enough information to create the video source object */
-    auto * video_source = FFMS_CreateVideoSource(
-        _fpath.c_str(), 0, _index, 1, FFMS_SEEK_NORMAL, &errinfo_
-    );
-
-    /* Get the first frame for examination so we know what we're getting. This is required
-    because resolution and colorspace is a per frame property and NOT global for the video. */
-    const FFMS_Frame *propframe = FFMS_GetFrame(video_source, 0, &errinfo_);
-    if (propframe == nullptr) {
-        FFMS_DestroyVideoSource(video_source);
-        video_source = nullptr;
-        return 1;
+    ffutils::VideoReader reader;
+    ffutils::MediaConfig cfg;
+    // cfg.video.resolution = {320, 180};
+    if (!reader.open(argv[1], cfg)) {
+        spdlog::error("Failed to open video!");
     }
 
-    std::cout << propframe->EncodedWidth << " " << propframe->EncodedHeight << std::endl;
+    bool got = false;
 
-    /* If you want to change the output colorspace or resize the output frame size,
-    now is the time to do it. IMPORTANT: This step is also required to prevent
-    resolution and colorspace changes midstream. You can you can always tell a frame's
-    original properties by examining the Encoded* properties in FFMS_Frame. */
-    /* See libavutil/pixfmt.h for the list of pixel formats/colorspaces.
-    To get the name of a given pixel format, strip the leading PIX_FMT_
-    and convert to lowercase. For example, PIX_FMT_YUV420P becomes "yuv420p". */
-
-    /* A -1 terminated list of the acceptable output formats. */
-    int pixfmts[2];
-    pixfmts[0] = FFMS_GetPixFmt("rgba");
-    pixfmts[1] = -1;
-
-    if (FFMS_SetOutputFormatV2(video_source, pixfmts,
-                               propframe->EncodedWidth,
-                               propframe->EncodedHeight,
-                               FFMS_RESIZER_BICUBIC, &errinfo_))
-    {
-        FFMS_DestroyVideoSource(video_source);
-        video_source = nullptr;
-        return 1;
-    }
-
-    {
-        const FFMS_Frame *curframe = FFMS_GetFrame(video_source, 300, &errinfo_);
-        if (curframe == NULL) {
-            exit(1);
-        }
+    if (reader.is_open()) {
+        int32_t tar = 300;
+        Timeit _(fmt::format("seek frame {}", tar));
+        reader.seek(tar);
+        int32_t cur = -1;
+        do {
+            got = reader.read();
+            cur = reader._framePtsToIndex(reader.frame_->pts);
+            spdlog::info("Got frame at {}, {}", reader.frame_->pts, cur);
+        } while(cur < tar);
     }
 
     return 0;

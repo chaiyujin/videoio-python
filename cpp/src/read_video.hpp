@@ -1,13 +1,12 @@
 #pragma once
 
-#include "ffmpeg/ffmpeg.hpp"
+#include "ffutils/ffutils.hpp"
 #include <string>
 #include <memory>
 
-inline std::ostream & operator<<(std::ostream & _out, AVRational const & _av_rational) {
-    _out << _av_rational.num << "/" << _av_rational.den;
-    return _out;
-}
+namespace ffutils {
+
+class VideoReader;
 
 inline void AVFormatContextDeleter(AVFormatContext *ctx) {
     if (ctx) {
@@ -16,11 +15,8 @@ inline void AVFormatContextDeleter(AVFormatContext *ctx) {
     }
 }
 
-class Reader;
-
-class InputStream : public Stream
-{
-    friend class Reader;
+class InputStream : public Stream {
+    friend class VideoReader;
     // sync timestamps
     int64_t start_ts_;
     int64_t next_dts_;         // predicted dts of the next packet read for this stream or
@@ -45,8 +41,7 @@ public:
         , audio_stream_idx_(-1) {}
     ~InputStream() {}
 
-    void reset() override
-    {
+    void reset() override {
         Stream::reset();
         start_ts_ = AV_NOPTS_VALUE;
         next_dts_ = curr_dts_ = AV_NOPTS_VALUE;
@@ -55,7 +50,7 @@ public:
     }
 };
 
-class Reader {
+class VideoReader {
 public:
     bool is_open_;
     // for decoding
@@ -64,6 +59,7 @@ public:
     // ffmpeg related
     std::unique_ptr<AVFormatContext, void(*)(AVFormatContext *ctx)> fmt_ctx_;
     std::vector<std::unique_ptr<InputStream>> input_streams_;
+    std::vector<InputStream *> video_streams_;
 
     void _cleanup() {
         is_open_ = false;
@@ -72,26 +68,36 @@ public:
         frame_ = nullptr;  // handled by creators (stream)
         // ffmpeg related, must be cleaned in correct order.
         input_streams_.clear();
+        video_streams_.clear();
         fmt_ctx_.reset(nullptr);
     }
 
     int _processInput();
+    int32_t _timestampToFrameIndex(int64_t);
+    int64_t _frameIndexToTimestamp(int32_t);
+    int32_t _framePtsToIndex(int64_t);
 
-    Reader()
+    VideoReader()
         : is_open_(false)
         , err_again_(false)
         , frame_(nullptr)
         , fmt_ctx_(nullptr, AVFormatContextDeleter)
         , input_streams_()
-    { _cleanup(); }
+        , video_streams_()
+    {
+        _cleanup();
+    }
+    ~VideoReader() {
+        _cleanup();
+    }
 
     bool is_open() const { return is_open_; }
 
-    bool open(std::string _filepath, Config _cfg = Config());
+    // only care about the first video track
+    bool open(std::string _filepath, MediaConfig _cfg = MediaConfig());
     bool read();
     bool seek(int32_t _frame_idx);
 
-    int32_t timestampToFrameIndex(int64_t);
-    int64_t frameIndexToTimestamp(int32_t);
-    int32_t framePtsToIndex(int64_t);
 };
+
+}
