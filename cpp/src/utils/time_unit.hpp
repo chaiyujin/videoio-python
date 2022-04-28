@@ -8,6 +8,7 @@ using Millisecond = std::chrono::duration<int64_t, std::milli       >;
 using Second      = std::chrono::duration<int64_t                   >;
 using Minute      = std::chrono::duration<int64_t, std::ratio<60>   >;
 using Hour        = std::chrono::duration<int64_t, std::ratio<3600 >>;
+using MsDouble    = std::chrono::duration<double,  std::milli       >;
 
 // literal operator
 inline Nanosecond  operator ""_ns  (unsigned long long val) { Nanosecond  ret = Nanosecond ((int64_t)val); return ret; }

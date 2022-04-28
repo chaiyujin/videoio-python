@@ -16,17 +16,23 @@ struct MediaConfig {
     };
 
     struct Video {
-        int2       resolution;
-        int32_t    bpp;
-        AVRational fps;
-        int32_t    rotation;
-        int32_t    bitrate;
+        int2          resolution;
+        AVPixelFormat pix_fmt;
+        AVRational    fps;
+        int32_t       rotation;
+        int32_t       bitrate;
 
-        Video(int2     _res={0,0}, int32_t _bpp=0,
-            AVRational _fps={0,1}, int32_t _rotation=0,
-            int32_t    _br =0)
-            : resolution(_res), bpp(_bpp)
-            , fps(_fps), rotation(_rotation)
+        Video(
+            int2          _res={0, 0},
+            AVRational    _fps={0, 1}, 
+            AVPixelFormat _pix_fmt=AV_PIX_FMT_RGB24,
+            int32_t       _rotation=0,
+            int32_t       _br=0
+        )
+            : resolution(_res)
+            , pix_fmt(_pix_fmt)
+            , fps(_fps)
+            , rotation(_rotation)
             , bitrate(_br)
         {}
     };

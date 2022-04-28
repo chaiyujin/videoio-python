@@ -1,4 +1,7 @@
-#include "read_video.hpp"
+#include "video_reader.hpp"
+
+static size_t  MAX_FRAME_BUFFER_SIZE = 20;
+static int32_t SEEKING_TRIGGER_HOP = 10;
 
 namespace ffutils {
 
@@ -112,6 +115,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         st->set_stream(stream);
         st->set_codec(dec);
         st->set_codec_ctx(dec_ctx);
+        st->n_frames_ = stream->nb_frames;  // init nb_frames, maybe not accurate
 
         // for specific type
         if (st->type() == AVMEDIA_TYPE_VIDEO) {
@@ -123,40 +127,31 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
                 ? int2({ (int32_t)dec_ctx->width, (int32_t)dec_ctx->height })
                 : config.video.resolution;
             config.video.fps = {dec_ctx->framerate.num, dec_ctx->framerate.den};
-            config.video.bpp = (config.video.bpp == 0) ? 3 : config.video.bpp;
 
             // rotation
             auto * rotateTag = av_dict_get(st->stream()->metadata, "rotate", NULL, 0);
             if (rotateTag != nullptr) { config.video.rotation = std::stoi(rotateTag->value); }
 
             // pix fmt
-            AVPixelFormat PixelFormat;
-            switch (config.video.bpp) {
-            case 3: PixelFormat = AV_PIX_FMT_RGB24; break;
-            case 4: PixelFormat = AV_PIX_FMT_RGBA;  break;
-            default:
-                spdlog::error("[ffmpeg::VideoReader]: unknown bpp", config.video.bpp);
-            }
-
-            st->set_tmp_frame(AllocateFrame(
-                PixelFormat,
-                config.video.resolution.x,
-                config.video.resolution.y
-            ));
-
+            AVPixelFormat tarPixFmt = config.video.pix_fmt;
             AVPixelFormat decPixFmt;
             switch (dec_ctx->pix_fmt) {
-            case AV_PIX_FMT_YUVJ420P: decPixFmt = AV_PIX_FMT_YUV420P; break;
-            case AV_PIX_FMT_YUVJ422P: decPixFmt = AV_PIX_FMT_YUV422P; break;
-            case AV_PIX_FMT_YUVJ444P: decPixFmt = AV_PIX_FMT_YUV444P; break;
-            case AV_PIX_FMT_YUVJ440P: decPixFmt = AV_PIX_FMT_YUV440P; break;
-            default:                  decPixFmt = dec_ctx->pix_fmt;
+                case AV_PIX_FMT_YUVJ420P: decPixFmt = AV_PIX_FMT_YUV420P; break;
+                case AV_PIX_FMT_YUVJ422P: decPixFmt = AV_PIX_FMT_YUV422P; break;
+                case AV_PIX_FMT_YUVJ444P: decPixFmt = AV_PIX_FMT_YUV444P; break;
+                case AV_PIX_FMT_YUVJ440P: decPixFmt = AV_PIX_FMT_YUV440P; break;
+                default:                  decPixFmt = dec_ctx->pix_fmt;
             }
 
+            // allocate frame buffer for decoded frames
+            st->buffer().allocate(MAX_FRAME_BUFFER_SIZE, decPixFmt, dec_ctx->width, dec_ctx->height);
+            // allocate temporary frame (for sws_scale)
+            st->set_tmp_frame(AllocateFrame(tarPixFmt, config.video.resolution.x, config.video.resolution.y));
+
             // allocate scaler
-            if (decPixFmt != PixelFormat) {
+            if (decPixFmt != tarPixFmt) {
                 // char buf[2048];
-                // av_get_pix_fmt_string(buf, 2048, PixelFormat);
+                // av_get_pix_fmt_string(buf, 2048, decPixFmt);
                 // spdlog::info("context: {}", buf);
                 st->set_sws_ctx(sws_getContext(
                     dec_ctx->width,
@@ -164,7 +159,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
                     decPixFmt,
                     config.video.resolution.x,
                     config.video.resolution.y,
-                    PixelFormat,
+                    tarPixFmt,
                     SWS_BICUBIC, NULL, NULL, NULL
                 ));
                 if (!st->sws_ctx()) {
@@ -176,23 +171,19 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
 
             // other things
             video_streams_.push_back(input_streams_.back().get());
-            // video_queues_.push_back(std::make_shared<_QueueImage>());
-            // video_queues_stream_indices_.push_back(i);
-            // image_caches_.emplace_back();
         }
         st->set_config(config);
-
-        // // ! HACK: only first video track
-        // if (video_streams_.size() == 1) {
-        //     break;
-        // }
     }
 
     is_open_ = (video_streams_.size() > 0);
+    if (!is_open_) {
+        this->_cleanup();
+    }
+
     return is_open_;
 }
 
-int VideoReader::_processInput() {
+int VideoReader::_process_packet() {
     int ret;
     int got_frame = 0;
     AVPacket pkt;
@@ -232,30 +223,19 @@ int VideoReader::_processInput() {
         Decode(st->codec_ctx(), st->frame(), &got_frame, &pkt);
 
         if (got_frame) {
-            int64_t pts = st->frame()->best_effort_timestamp;
-            frame_ = st->frame();
-            if (st->sws_ctx()) {
-                // Timeit _("sws_scale");
-                sws_scale(st->sws_ctx(),
-                          (const uint8_t * const *)st->frame()->data,
-                          st->frame()->linesize, 0,
-                          st->frame()->height,
-                          st->tmp_frame()->data,
-                          st->tmp_frame()->linesize);
-                frame_ = st->tmp_frame();
-            }
-            frame_->pts = pts;
-            // spdlog::debug(
-            //     "frame linesize: {}, width: {}, widthx4: {}, pts: {}",
-            //     frame_->linesize[0],
-            //     frame_->width,
-            //     frame_->width*4,
-            //     frame_->pts
-            // );
-            // spdlog::debug("st {} (video): pts {}", pkt.stream_index, pts);
+            // new frame
+            st->buffer().push_back();
+            AVFrame * new_frame = st->buffer().offset_back(0);
+            av_frame_copy(new_frame, st->frame());
+            av_frame_copy_props(new_frame, st->frame());
+            new_frame->pts = new_frame->best_effort_timestamp;
+            int64_t pts = new_frame->best_effort_timestamp;
+
+            // set to new frame
+            frame_ = new_frame;
         }
     }
-    
+
     if (got_frame != 1) {
         err_again_ = true;  // !HACK: abuse err_again
     }
@@ -264,15 +244,34 @@ int VideoReader::_processInput() {
     return ret;
 }
 
-bool VideoReader::read() {
+void VideoReader::_convert_pix_fmt() {
+    // todo: which video strream?
+    auto * st = video_streams_[0];
+    if (st->sws_ctx() && frame_ != st->tmp_frame()) {
+        // Timeit _("sws_scale");
+        sws_scale(st->sws_ctx(),
+                    (const uint8_t * const *)frame_->data,
+                    frame_->linesize, 0,
+                    frame_->height,
+                    st->tmp_frame()->data,
+                    st->tmp_frame()->linesize);
+        st->tmp_frame()->pts = frame_->pts;
+        frame_ = st->tmp_frame();
+    }
+}
+
+bool VideoReader::_read_frame() {
     if (!is_open()) {
         return false;
     }
 
+    this->is_eof_ = false;
+
     bool got = false;
     do {
-        int ret = this->_processInput();
+        int ret = this->_process_packet();
         if (ret == AVERROR_EOF) {
+            this->is_eof_ = true;
             return false;
         }
         // need to decode again
@@ -286,7 +285,11 @@ bool VideoReader::read() {
     return true;
 }
 
-int32_t VideoReader::_framePtsToIndex(int64_t _timestamp) {
+int32_t VideoReader::_ts_to_fidx(int64_t _timestamp) {
+    if (_timestamp == AV_NOPTS_VALUE) {
+        return AV_NOIDX_VALUE;
+    }
+
     // todo: which stream
     size_t sidx = 0;
     auto * stream    = video_streams_[sidx]->stream();
@@ -297,18 +300,11 @@ int32_t VideoReader::_framePtsToIndex(int64_t _timestamp) {
     return frame_idx;
 }
 
-int32_t VideoReader::_timestampToFrameIndex(int64_t _timestamp) {
-    // todo: which stream
-    size_t sidx = 0;
-    auto * stream    = video_streams_[sidx]->stream();
-    auto const & fps = video_streams_[sidx]->config().video.fps;
+int64_t VideoReader::_fidx_to_ts(int32_t _frame_idx) {
+    if (_frame_idx == AV_NOIDX_VALUE) {
+        return AV_NOPTS_VALUE;
+    }
 
-    auto inv_fps = AVRational{fps.den, fps.num};
-    auto frame_idx = av_rescale_q(_timestamp - stream->start_time, stream->time_base, inv_fps);
-    return frame_idx;
-}
-
-int64_t VideoReader::_frameIndexToTimestamp(int32_t _frame_idx) {
     // todo: which stream
     size_t sidx = 0;
     auto * stream    = video_streams_[sidx]->stream();
@@ -324,18 +320,78 @@ bool VideoReader::seek(int32_t _frame_idx) {
         return false;
     }
 
-    // todo: which stream
-    size_t sidx = 0;
+    this->is_eof_ = false;
+
+    size_t sidx = 0;  // todo: which stream
     auto * handle = fmt_ctx_.get();
+    auto * st = video_streams_[sidx];
 
-    // get fps
-    auto timestamp = _frameIndexToTimestamp(_frame_idx);
-    spdlog::debug("seek frame: {}, ts: {}, {}", _frame_idx, timestamp, _timestampToFrameIndex(timestamp));
+    // > Case 1: it's same with last frame
+    if (frame_ && this->_ts_to_fidx(frame_->pts) == _frame_idx) {
+        return true;
+    }
+    
+    // > Case 2: it's in frame buffer
+    bool in_buffer = false;
+    for (size_t i = 0; i < st->buffer().size(); ++i) {
+        auto * frm = st->buffer().offset_front(i);
+        if (this->_ts_to_fidx(frm->pts) == _frame_idx) {
+            spdlog::debug("find in buffer! {}, {}, {}", frm->pts, this->_ts_to_fidx(frm->pts), _frame_idx);
+            in_buffer = true;
+            frame_ = frm;
+            break;
+        }
+    }
 
-    int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
-    spdlog::debug("seek? {}", ret);
+    // > Case 3: not in buffer
+    if (!in_buffer) {
+        auto last_idx = (frame_) ? _ts_to_fidx(frame_->pts) : -1000;
 
-    return false;
+        // ! HACK: If we are close to target future frame index, don't seek any more
+        if (last_idx + SEEKING_TRIGGER_HOP < _frame_idx) {
+            // seek the nearest key frame
+            auto timestamp = _fidx_to_ts(_frame_idx);
+            int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
+            spdlog::debug("seek frame: {}, ts: {}, {}", _frame_idx, timestamp, _ts_to_fidx(timestamp));
+        }
+
+        // read until the right frame
+        int32_t cur = -1;
+        if (frame_) {
+            cur = this->_ts_to_fidx(frame_->pts);
+        }
+
+        // ! cannot use 'cur < _frame_idx' to judge, due to B-frame (need future frames to decode)
+        while (cur != _frame_idx) {
+            // no frame got, eof
+            if (!this->_read_frame()) {
+                if (st->n_frames_ > cur + 1) {
+                    st->n_frames_ = cur + 1;
+                }
+                break;
+            }
+            cur = this->_ts_to_fidx(frame_->pts);
+            spdlog::debug("  got frame at {}, {}", frame_->pts, cur);
+        }
+    }
+
+    // convert pixel format of frame_
+    this->_convert_pix_fmt();
+
+    read_idx_ = _frame_idx - 1;
+    return true;
+}
+
+bool VideoReader::read() {
+    if (!this->is_open() || this->is_eof()) {
+        return false;
+    }
+
+    int32_t new_idx = read_idx_ + 1;
+    this->seek(new_idx);
+    read_idx_ = new_idx;
+
+    return true;
 }
 
 }

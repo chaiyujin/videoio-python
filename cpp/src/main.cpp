@@ -1,4 +1,4 @@
-#include "read_video.hpp"
+#include "ffutils/ffutils.hpp"
 
 static void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
     FILE *pFile;
@@ -6,7 +6,7 @@ static void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
     int  y;
     
     // Open file
-    sprintf(szFilename, "hello/frame%d.ppm", iFrame);
+    sprintf(szFilename, "frames/%d.ppm", iFrame);
 
     pFile=fopen(szFilename, "wb");
     if(pFile==NULL)
@@ -24,27 +24,44 @@ static void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
 }
 
 int main(int argc, char *argv[]) {
-    spdlog::set_level(spdlog::level::debug);
+    // spdlog::set_level(spdlog::level::debug);
 
     ffutils::VideoReader reader;
     ffutils::MediaConfig cfg;
-    // cfg.video.resolution = {320, 180};
+    cfg.video.resolution = {320, 180};
     if (!reader.open(argv[1], cfg)) {
         spdlog::error("Failed to open video!");
     }
 
     bool got = false;
 
+    // if (reader.is_open()) {
+    //     spdlog::info("n_frames: {}", reader.n_frames());
+    //     for (int32_t tar = 0; tar < 100; ++tar)
+    //     {
+    //         Timeit _(fmt::format("seek frame {}", tar));
+    //         reader.seek(tar);
+    //         SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar);
+    //     }
+    //     spdlog::info("n_frames: {}", reader.n_frames());
+    //     spdlog::info("current timestamp: {}", reader.current_timestamp());
+    // }
+
     if (reader.is_open()) {
-        int32_t tar = 300;
-        Timeit _(fmt::format("seek frame {}", tar));
-        reader.seek(tar);
-        int32_t cur = -1;
-        do {
-            got = reader.read();
-            cur = reader._framePtsToIndex(reader.frame_->pts);
-            spdlog::info("Got frame at {}, {}", reader.frame_->pts, cur);
-        } while(cur < tar);
+        spdlog::info("n_frames: {}", reader.n_frames());
+        for (int32_t tar = 0; tar < 10; ++tar) {
+            Timeit _(fmt::format("seek frame {}", tar));
+            reader.read();
+            SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar);
+        }
+        reader.seek(100);
+        for (int32_t tar = 0; tar < 10; ++tar) {
+            Timeit _(fmt::format("seek frame {}", tar + 100));
+            reader.read();
+            SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar + 100);
+        }
+        spdlog::info("n_frames: {}", reader.n_frames());
+        spdlog::info("current timestamp: {}", reader.current_timestamp());
     }
 
     return 0;

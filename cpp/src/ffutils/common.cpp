@@ -57,6 +57,7 @@ AVFrame *AllocateFrame(
     frame->channel_layout = channelLayout;
     frame->sample_rate    = sampleRate;
     frame->nb_samples     = nbSamples;
+    frame->pts            = AV_NOPTS_VALUE;
     if (nbSamples)
     {
         int ret = av_frame_get_buffer(frame, 0);
@@ -78,6 +79,7 @@ AVFrame *AllocateFrame(
     picture->format = pixFmt;
     picture->width  = width;
     picture->height = height;
+    picture->pts    = AV_NOPTS_VALUE;
 
     /* allocate the buffers for the frame data */
     ret = av_frame_get_buffer(picture, 32);
