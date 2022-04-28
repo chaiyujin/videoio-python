@@ -26,8 +26,16 @@ def test_cv2():
 def test_ffms():
     import ffms
     reader = ffms.VideoReader(test_vpath)
-    with timeit("seek"):
-        reader.seek_frame(300)
+
+    for i in range(100):
+        idx = np.random.randint(0, reader.n_frames)
+        with timeit("seek {}".format(idx)):
+            reader.seek_frame(idx)
+            ret, img = reader.read()
+        if ret:
+            cv2.imshow('img', img)
+            cv2.waitKey(0)
+
     for ifrm in range(reader.n_frames):
         if ifrm == 10:
             break

@@ -96,7 +96,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
             dec_ctx->thread_type = FF_THREAD_SLICE;
         else
             dec_ctx->thread_count = 1; //don't use multithreading
-        spdlog::warn("codec ctx thread: {}", dec_ctx->thread_count);
+        // spdlog::debug("codec ctx thread: {}", dec_ctx->thread_count);
 
         // Open decoder
         ret = avcodec_open2(dec_ctx, dec, NULL);
@@ -328,6 +328,7 @@ bool VideoReader::seek(int32_t _frame_idx) {
 
     // > Case 1: it's same with last frame
     if (frame_ && this->_ts_to_fidx(frame_->pts) == _frame_idx) {
+        read_idx_ = _frame_idx - 1;
         return true;
     }
     
@@ -336,7 +337,7 @@ bool VideoReader::seek(int32_t _frame_idx) {
     for (size_t i = 0; i < st->buffer().size(); ++i) {
         auto * frm = st->buffer().offset_front(i);
         if (this->_ts_to_fidx(frm->pts) == _frame_idx) {
-            spdlog::debug("find in buffer! {}, {}, {}", frm->pts, this->_ts_to_fidx(frm->pts), _frame_idx);
+            // spdlog::debug("find in buffer! {}, {}, {}", frm->pts, this->_ts_to_fidx(frm->pts), _frame_idx);
             in_buffer = true;
             frame_ = frm;
             break;
@@ -348,11 +349,13 @@ bool VideoReader::seek(int32_t _frame_idx) {
         auto last_idx = (frame_) ? _ts_to_fidx(frame_->pts) : -1000;
 
         // ! HACK: If we are close to target future frame index, don't seek any more
-        if (last_idx + SEEKING_TRIGGER_HOP < _frame_idx) {
+        if (last_idx + SEEKING_TRIGGER_HOP < _frame_idx || last_idx > _frame_idx) {
             // seek the nearest key frame
             auto timestamp = _fidx_to_ts(_frame_idx);
             int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
-            spdlog::debug("seek frame: {}, ts: {}, {}", _frame_idx, timestamp, _ts_to_fidx(timestamp));
+            // spdlog::debug("seek frame: {}, ts: {}, {}", _frame_idx, timestamp, _ts_to_fidx(timestamp));
+        } else {
+            // spdlog::debug("near ! frame: {}, {}, {}", last_idx, _frame_idx, SEEKING_TRIGGER_HOP);
         }
 
         // read until the right frame
@@ -371,13 +374,12 @@ bool VideoReader::seek(int32_t _frame_idx) {
                 break;
             }
             cur = this->_ts_to_fidx(frame_->pts);
-            spdlog::debug("  got frame at {}, {}", frame_->pts, cur);
+            // spdlog::debug("  got frame at {}, {}", frame_->pts, cur);
         }
     }
 
     // convert pixel format of frame_
     this->_convert_pix_fmt();
-
     read_idx_ = _frame_idx - 1;
     return true;
 }

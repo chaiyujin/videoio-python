@@ -9,6 +9,9 @@ namespace nb = nanobind;
 using NpImage = nb::tensor<nanobind::numpy, uint8_t>;
 
 std::pair<bool, NpImage> _Read(ffutils::VideoReader & _reader) {
+
+    // spdlog::set_level(spdlog::level::debug);
+
     static size_t shape_empty[3] = { 0, 0, 0 };
     static NpImage empty(nullptr, 3, shape_empty);
 
