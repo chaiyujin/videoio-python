@@ -238,6 +238,12 @@ public:
     bool is_open() const { return is_open_; }
     bool is_eof()  const { return is_eof_ || (read_idx_ + 1 >= n_frames()); }
     int32_t n_frames() const { return (is_open_) ? video_streams_[0]->n_frames_ : 0; }
+    Timestamp duration() const {
+        return (is_open_)
+            ? AVTimeToTimestamp(video_streams_[0]->stream()->duration, video_streams_[0]->stream()->time_base)
+            : Timestamp(0);
+    }
+
     Timestamp current_timestamp() const {
         return (is_open_)
             ? ((frame_) ? AVTimeToTimestamp(frame_->pts, video_streams_[0]->stream()->time_base) : Timestamp(0))

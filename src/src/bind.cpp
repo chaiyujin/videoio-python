@@ -49,6 +49,10 @@ NB_MODULE(ffutils, m) {
         .def(nb::init<std::string>())
         .def(nb::init<std::string, std::string>())
         .def_property_readonly("n_frames", &ffutils::VideoReader::n_frames)
+        .def_property_readonly("duration", [](ffutils::VideoReader const & r) {
+            auto ts = r.duration();
+            return cast<MsDouble>(ts).count();
+        })
         .def_property_readonly("curr_msec", [](ffutils::VideoReader const & r) {
             auto ts = r.current_timestamp();
             return cast<MsDouble>(ts).count();

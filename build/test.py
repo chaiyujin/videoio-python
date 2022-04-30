@@ -28,6 +28,7 @@ def test_ffutils():
     reader = ffutils.VideoReader(test_vpath)
 
     for i in range(100):
+        print(reader.n_frames, reader.duration)
         idx = np.random.randint(0, reader.n_frames)
         msec = idx * 1000 / 30
         with timeit("seek {}, {:.3f}".format(idx, msec)):
