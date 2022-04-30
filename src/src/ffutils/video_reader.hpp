@@ -248,6 +248,7 @@ public:
     auto * frame() { return frame_; }
     bool open(std::string _filepath, MediaConfig _cfg = MediaConfig());
     bool seek(int32_t _frame_idx);
+    bool seekTime(double _msec);
     bool read();
 };
 

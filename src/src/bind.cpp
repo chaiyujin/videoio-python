@@ -54,6 +54,7 @@ NB_MODULE(ffutils, m) {
             return cast<MsDouble>(ts).count();
         })
         .def("seek_frame", &ffutils::VideoReader::seek)
+        .def("seek_msec", &ffutils::VideoReader::seekTime)
         .def("read", &_Read)
     ;
 }

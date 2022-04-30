@@ -29,8 +29,9 @@ def test_ffutils():
 
     for i in range(100):
         idx = np.random.randint(0, reader.n_frames)
-        with timeit("seek {}".format(idx)):
-            reader.seek_frame(idx)
+        msec = idx * 1000 / 30
+        with timeit("seek {}, {:.3f}".format(idx, msec)):
+            reader.seek_msec(msec)
             ret, img = reader.read()
         if ret:
             cv2.imshow('img', img)

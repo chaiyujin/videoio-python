@@ -315,6 +315,18 @@ int64_t VideoReader::_fidx_to_ts(int32_t _frame_idx) {
     return timestamp;
 }
 
+bool VideoReader::seekTime(double _msec) {
+    if (!is_open()) {
+        return false;
+    }
+
+    // todo: which stream
+    size_t sidx = 0;
+    auto * stream  = video_streams_[sidx]->stream();
+    auto timestamp = av_rescale_q((int64_t)std::round(_msec), {1, 1000}, stream->time_base);
+    return this->seek(this->_ts_to_fidx(timestamp));
+}
+
 bool VideoReader::seek(int32_t _frame_idx) {
     if (!is_open()) {
         return false;
