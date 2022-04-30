@@ -44,7 +44,7 @@ std::pair<bool, NpImage> _Read(ffutils::VideoReader & _reader) {
     };
 }
 
-NB_MODULE(ffms, m) {
+NB_MODULE(ffutils, m) {
     nb::class_<ffutils::VideoReader>(m, "VideoReader")
         .def(nb::init<std::string>())
         .def(nb::init<std::string, std::string>())

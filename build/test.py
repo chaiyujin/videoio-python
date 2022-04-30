@@ -23,9 +23,9 @@ def test_cv2():
         # cv2.waitKey(1)
 
 
-def test_ffms():
-    import ffms
-    reader = ffms.VideoReader(test_vpath)
+def test_ffutils():
+    import ffutils
+    reader = ffutils.VideoReader(test_vpath)
 
     for i in range(100):
         idx = np.random.randint(0, reader.n_frames)
@@ -49,4 +49,4 @@ def test_ffms():
 
 
 test_cv2()
-test_ffms()
+test_ffutils()

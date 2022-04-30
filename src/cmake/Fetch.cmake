@@ -8,7 +8,7 @@ function(GitHelper name url tag add_sub inc_dir link_lib)
         ${name}
         GIT_REPOSITORY ${url}
         GIT_TAG        ${tag}
-        GIT_SHALLOW    TRUE
+        # GIT_SHALLOW    TRUE
         GIT_PROGRESS   TRUE
     )
 
