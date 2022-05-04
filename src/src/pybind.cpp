@@ -25,11 +25,14 @@ std::pair<bool, NpImage> _Read(ffutils::VideoReader & _reader) {
     auto const h = frame->height;
     auto const w = frame->width;
     auto const s = frame->linesize[0];
+    // spdlog::warn("h {}, w {}, s{}\n", h, w, s);
 
     int chs = s / w;  // TODO: channels
     size_t shape[3] = { (size_t)h, (size_t)w, (size_t)chs };
     NpImage ret(shape);
-    memcpy(ret.mutable_data(), frame->data[0], h * s);
+    for (int y = 0; y < h; ++y) {
+        memcpy(ret.mutable_data() + (w * chs * y), frame->data[0] + s * y, w * chs);
+    }
     return {true, std::move(ret)};
 }
 

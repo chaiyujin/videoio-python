@@ -6,7 +6,8 @@ from timeit import timeit
 
 # test_vpath = os.path.expanduser("~/Movies/test_4k.webm")
 # test_vpath = os.path.expanduser("~/Movies/hello.flv")
-test_vpath = os.path.expanduser("~/Videos/30fps.mp4")
+# test_vpath = os.path.expanduser("~/Videos/30fps.mp4")
+test_vpath = "../assets/050.mp4"
 
 
 def test_cv2():
