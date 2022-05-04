@@ -26,6 +26,7 @@ def test_cv2():
 def test_ffutils():
     import ffutils
     reader = ffutils.VideoReader(test_vpath)
+    print(reader.resolution, reader.width, reader.height)
 
     for i in range(100):
         print(reader.n_frames, reader.duration)
@@ -50,5 +51,5 @@ def test_ffutils():
         cv2.waitKey(0)
 
 
-test_cv2()
+# test_cv2()
 test_ffutils()

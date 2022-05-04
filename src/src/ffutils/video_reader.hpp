@@ -249,6 +249,11 @@ public:
             ? ((frame_) ? AVTimeToTimestamp(frame_->pts, video_streams_[0]->stream()->time_base) : Timestamp(0))
             : Timestamp(AV_NOPTS_VALUE);
     }
+    int2 resolution() const {
+        return (is_open_)
+            ? video_streams_[0]->config().video.resolution
+            : int2({0, 0});
+    }
 
     // only care about the first video track
     auto * frame() { return frame_; }

@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
 
     ffutils::VideoReader reader;
     ffutils::MediaConfig cfg;
-    cfg.video.resolution = {320, 180};
+    // cfg.video.resolution = {320, 180};
     if (!reader.open(argv[1], cfg)) {
         spdlog::error("Failed to open video!");
     }

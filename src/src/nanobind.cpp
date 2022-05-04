@@ -57,6 +57,18 @@ NB_MODULE(ffutils, m) {
             auto ts = r.current_timestamp();
             return cast<MsDouble>(ts).count();
         })
+        .def_property_readonly("resolution", [](ffutils::VideoReader const & r) {
+            auto res = r.resolution();
+            return std::pair<int, int>(res.x, res.y);
+        })
+        .def_property_readonly("width", [](ffutils::VideoReader const & r) {
+            auto res = r.resolution();
+            return res.x;
+        })
+        .def_property_readonly("height", [](ffutils::VideoReader const & r) {
+            auto res = r.resolution();
+            return res.y;
+        })
         .def("seek_frame", &ffutils::VideoReader::seek)
         .def("seek_msec", &ffutils::VideoReader::seekTime)
         .def("read", &_Read)

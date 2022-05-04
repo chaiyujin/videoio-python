@@ -134,14 +134,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
 
             // pix fmt
             AVPixelFormat tarPixFmt = config.video.pix_fmt;
-            AVPixelFormat decPixFmt;
-            switch (dec_ctx->pix_fmt) {
-                case AV_PIX_FMT_YUVJ420P: decPixFmt = AV_PIX_FMT_YUV420P; break;
-                case AV_PIX_FMT_YUVJ422P: decPixFmt = AV_PIX_FMT_YUV422P; break;
-                case AV_PIX_FMT_YUVJ444P: decPixFmt = AV_PIX_FMT_YUV444P; break;
-                case AV_PIX_FMT_YUVJ440P: decPixFmt = AV_PIX_FMT_YUV440P; break;
-                default:                  decPixFmt = dec_ctx->pix_fmt;
-            }
+            AVPixelFormat decPixFmt = dec_ctx->pix_fmt;
 
             // allocate frame buffer for decoded frames
             st->buffer().allocate(MAX_FRAME_BUFFER_SIZE, decPixFmt, dec_ctx->width, dec_ctx->height);
