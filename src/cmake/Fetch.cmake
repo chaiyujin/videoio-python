@@ -1,7 +1,7 @@
 # FetchContent
 include(FetchContent)
 set(FETCHCONTENT_QUIET    off)
-set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/external")
+set(FETCHCONTENT_BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/external")
 
 function(GitHelper name url tag add_sub inc_dir link_lib)
     FetchContent_Declare(
