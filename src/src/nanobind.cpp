@@ -72,5 +72,7 @@ NB_MODULE(ffutils, m) {
         .def("seek_frame", &ffutils::VideoReader::seek)
         .def("seek_msec", &ffutils::VideoReader::seekTime)
         .def("read", &_Read)
+        .def("release", &ffutils::VideoReader::close)
+        .def("close", &ffutils::VideoReader::close)
     ;
 }

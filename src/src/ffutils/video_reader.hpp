@@ -210,6 +210,7 @@ public:
         , fmt_ctx_(nullptr, AVFormatContextDeleter)
         , input_streams_()
         , video_streams_() {
+        av_log_set_level(AV_LOG_ERROR);
         _cleanup();
     }
     VideoReader(std::string _filepath, std::string _pix_fmt = "bgr") : VideoReader() {
@@ -261,6 +262,7 @@ public:
     bool seek(int32_t _frame_idx);
     bool seekTime(double _msec);
     bool read();
+    void close() { this->_cleanup(); }
 };
 
 }
