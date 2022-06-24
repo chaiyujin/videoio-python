@@ -50,13 +50,13 @@ int main(int argc, char *argv[]) {
 
     if (reader.is_open()) {
         log::info("n_frames: {}", reader.n_frames());
+        reader.seek(8000);
         for (int32_t tar = 0; tar < 10; ++tar) {
             fmt::print("test\n");
             Timeit _(fmt::format("seek frame {}", tar));
             reader.read();
             SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar);
         }
-        reader.seek(100);
         for (int32_t tar = 0; tar < 10; ++tar) {
             Timeit _(fmt::format("seek frame {}", tar + 100));
             reader.read();

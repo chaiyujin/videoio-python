@@ -7,17 +7,23 @@ SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # include cmake utils
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+include(cmake/Fetch.cmake)
 
 # ffmpeg from brew
 if (APPLE)
-    set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg/5.0.1")
+    set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg/5.0.1_1")
+    # set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg@4/4.4.2_1")
+    # set(FFmpeg_INSTALL_PATH "~/Software/ffmpeg_build")
 endif (APPLE)
 find_package(FFmpeg REQUIRED)
 find_package(Threads REQUIRED)
 list(APPEND link_libraries FFmpeg::FFmpeg Threads::Threads)
 
 # pybind 11
-find_package(pybind11 REQUIRED)
+find_package(pybind11)
+if (NOT pybind11_FOUND)
+    GitHelper(pybind11 https://github.com/pybind/pybind11.git v2.9.2 TRUE "" "")
+endif ()
 
 # fmt
 add_subdirectory(ext/fmt)

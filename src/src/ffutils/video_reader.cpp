@@ -184,57 +184,86 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
 int VideoReader::_process_packet() {
     int ret;
     int got_frame = 0;
-    AVPacket pkt;
+    AVPacket pkt = {};
 
     err_again_ = false;
     if (!fmt_ctx_) {
         return AVERROR_EOF;
     }
 
+    auto _decodeFrame = [&](InputStream * st) -> int {
+        if (st->type() == AVMEDIA_TYPE_VIDEO) {
+            int ret = avcodec_receive_frame(st->codec_ctx(), st->frame());
+            if (ret == 0) {
+                got_frame = 1;
+            }
+            return ret;
+        }
+        return AVERROR(EAGAIN);
+    };
+
+    auto _copyResults = [&](InputStream * st) {
+        // new frame
+        st->buffer().push_back();
+        AVFrame * new_frame = st->buffer().offset_back(0);
+        av_frame_copy(new_frame, st->frame());
+        av_frame_copy_props(new_frame, st->frame());
+        new_frame->pts = new_frame->best_effort_timestamp;
+        // set to new frame
+        frame_ = new_frame;
+    };
+
+    // try decode first
+    ret = _decodeFrame(video_streams_[0]);
+    if (ret == 0 || ret == AVERROR_EOF) {
+        // log::warn("flush buffered frames.");
+        if (got_frame) {
+            _copyResults(video_streams_[0]);
+        }
+        return ret;
+    }
+
     // read frame
     ret = av_read_frame(fmt_ctx_.get(), &pkt);
+
+    // Error Again: we need to read again, just return
     if (ret == AVERROR(EAGAIN)) {
         err_again_ = true;
         av_packet_unref(&pkt);
-        return ret;
+        return AVERROR(EAGAIN);
     }
 
-    // end
+    // Error EOF
     if (ret == AVERROR_EOF) {
+        log::debug("  EOF!!! stream_index {}", pkt.stream_index);
         av_packet_unref(&pkt);
-        return ret;
+        // ! Don't return now, because some frames maybe cached in the decoder.
+    }
+
+    // Check the stream is the target video track
+    auto * st = (ret != AVERROR_EOF)
+        ? input_streams_[pkt.stream_index].get()
+        : video_streams_[0];  // HACK: hard-coded the first video stream, we try to flush the cached frames.
+
+    // ! Not fisrt video track
+    if (!st || st != video_streams_[0]) {
+        err_again_ = true;  // !HACK: abuse err_again_ here, it's a not needed stream
+        av_packet_unref(&pkt);
+        return ret;  // EOF or EAGAIN
     }
 
     // process frame
-    auto & st = input_streams_[pkt.stream_index];
-    // ! Not fisrt video track
-    if (!st || st.get() != video_streams_[0]) {
-        err_again_ = true;  // !HACK: abuse err_again_ here, it's a not needed stream
-        return ret;
-    }
-
-    // bool keyframe = !!(pkt.flags & AV_PKT_FLAG_KEY);
-    // log::info("keyframe? {}, {}, {}", keyframe, pkt.pts, pkt.dts);
-
-    // video
     if (st->type() == AVMEDIA_TYPE_VIDEO) {
         Decode(st->codec_ctx(), st->frame(), &got_frame, &pkt);
 
         if (got_frame) {
-            // new frame
-            st->buffer().push_back();
-            AVFrame * new_frame = st->buffer().offset_back(0);
-            av_frame_copy(new_frame, st->frame());
-            av_frame_copy_props(new_frame, st->frame());
-            new_frame->pts = new_frame->best_effort_timestamp;
-            int64_t pts = new_frame->best_effort_timestamp;
-
-            // set to new frame
-            frame_ = new_frame;
+            _copyResults(st);
+            // reset to 0
+            ret = 0;
         }
     }
 
-    if (got_frame != 1) {
+    if (got_frame < 1 && ret != AVERROR_EOF) {
         err_again_ = true;  // !HACK: abuse err_again
     }
 
@@ -295,7 +324,7 @@ int32_t VideoReader::_ts_to_fidx(int64_t _timestamp) {
 
     auto inv_fps = AVRational{fps.den, fps.num};
     auto frame_idx = av_rescale_q(_timestamp - stream->start_time, stream->time_base, inv_fps);
-    return frame_idx;
+    return std::max((int32_t)frame_idx, (int32_t)0);
 }
 
 int64_t VideoReader::_fidx_to_ts(int32_t _frame_idx) {
@@ -327,6 +356,10 @@ bool VideoReader::seekTime(double _msec) {
 
 bool VideoReader::seek(int32_t _frame_idx) {
     if (!is_open()) {
+        return false;
+    }
+    if (_frame_idx >= this->n_frames()) {
+        this->is_eof_ = true;
         return false;
     }
 
@@ -361,11 +394,17 @@ bool VideoReader::seek(int32_t _frame_idx) {
         // ! HACK: If we are close to target future frame index, don't seek any more
         if (last_idx + SEEKING_TRIGGER_HOP < _frame_idx || last_idx > _frame_idx) {
             // seek the nearest key frame
+            auto * stream = video_streams_[sidx]->stream();
             auto timestamp = _fidx_to_ts(_frame_idx);
             int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
-            // log::debug("seek frame: {}, ts: {}, {}", _frame_idx, timestamp, _ts_to_fidx(timestamp));
+            log::debug(
+                "seek frame: {}, ts: {}, {}",
+                _frame_idx,
+                AVTimeToTimestamp(timestamp, stream->time_base),
+                _ts_to_fidx(timestamp)
+            );
         } else {
-            // log::debug("near ! frame: {}, {}, {}", last_idx, _frame_idx, SEEKING_TRIGGER_HOP);
+            log::debug("near frame: {}, {}, {}", last_idx, _frame_idx, SEEKING_TRIGGER_HOP);
         }
 
         // read until the right frame
@@ -375,16 +414,17 @@ bool VideoReader::seek(int32_t _frame_idx) {
         }
 
         // ! cannot use 'cur < _frame_idx' to judge, due to B-frame (need future frames to decode)
+        // while (cur != _frame_idx) {
         while (cur != _frame_idx) {
+            log::debug("  cur {}, target {}", cur, _frame_idx);
             // no frame got, eof
-            if (!this->_read_frame()) {
-                if (st->n_frames_ > cur + 1) {
-                    st->n_frames_ = cur + 1;
-                }
+            bool got = this->_read_frame();
+            log::debug("  read new frame: got? {}", got);
+            if (!got) {
                 break;
             }
             cur = this->_ts_to_fidx(frame_->pts);
-            // log::debug("  got frame at {}, {}", frame_->pts, cur);
+            log::debug("  got frame at {}, {}", frame_->pts, cur);
         }
     }
 
@@ -400,10 +440,10 @@ bool VideoReader::read() {
     }
 
     int32_t new_idx = read_idx_ + 1;
-    this->seek(new_idx);
+    bool got = this->seek(new_idx);
     read_idx_ = new_idx;
 
-    return true;
+    return got;
 }
 
 }
