@@ -2,7 +2,7 @@
 #include <chrono>
 #include <string>
 #include <iostream>
-#include <spdlog/spdlog.h>
+#include "log.hpp"
 
 /* ------------------------------------------------------------------------------------------------------------------ */
 /*                                    A simple timer don't consider context swaping                                   */
@@ -45,10 +45,10 @@ public:
             int mins  = (int)std::floor((duration_ - hours * 3600000.0) / 60000.0);
             int secs  = (int)std::floor((duration_ - hours * 3600000.0 - mins * 60000.0) / 1000.0);
             double ms = (duration_ - hours * 3600000.0 - mins * 60000.0 - secs * 1000.0);
-            if      (hours > 0) spdlog::info("[timeit<{}>]: {:2d}h {:2d}m {:2d}s {:.3f}ms", tag_, hours, mins, secs, ms);
-            else if (mins > 0)  spdlog::info("[timeit<{}>]: {:2d}m {:2d}s {:.3f}ms", tag_, mins, secs, ms);
-            else if (secs > 0)  spdlog::info("[timeit<{}>]: {:2d}s {:.3f}ms", tag_, secs, ms);
-            else                spdlog::info("[timeit<{}>]: {:.3f}ms", tag_, ms);
+            if      (hours > 0) log::info("[timeit<{}>]: {:2d}h {:2d}m {:2d}s {:.3f}ms", tag_, hours, mins, secs, ms);
+            else if (mins > 0)  log::info("[timeit<{}>]: {:2d}m {:2d}s {:.3f}ms", tag_, mins, secs, ms);
+            else if (secs > 0)  log::info("[timeit<{}>]: {:2d}s {:.3f}ms", tag_, secs, ms);
+            else                log::info("[timeit<{}>]: {:.3f}ms", tag_, ms);
         }
 
         stop_ = true;

@@ -3,6 +3,7 @@
 #include "common.hpp"
 #include "stream.hpp"
 #include <string>
+#include <vector>
 #include <memory>
 
 namespace ffutils {
@@ -13,7 +14,7 @@ class VideoReader;
 
 inline void AVFormatContextDeleter(AVFormatContext *ctx) {
     if (ctx) {
-        spdlog::debug("avformat_close_input");
+        log::debug("avformat_close_input");
         avformat_close_input(&ctx);
     }
 }
@@ -170,49 +171,74 @@ public:
 
 
 class VideoReader {
-    bool is_open_;
-    bool is_eof_;
-    int32_t read_idx_;
-    // for decoding
-    bool err_again_;
-    AVFrame * frame_;  // point to last frame
+    bool    is_open_;
+    bool    is_eof_;
+
     // ffmpeg related
     std::unique_ptr<AVFormatContext, void(*)(AVFormatContext *ctx)> fmt_ctx_;
     std::vector<std::unique_ptr<InputStream>> input_streams_;
     std::vector<InputStream *> video_streams_;
 
+    // some properties
+    Timestamp start_time_;
+    Timestamp duration_;
+    AVRational fps_;
+    AVRational tbr_;
+
+    // for decoding
+    bool err_again_;
+    AVFrame * frame_;  // point to last frame
+
+    // for seeking and reading
+    int32_t vidx_;  // the track index of video
+    int32_t read_idx_;  // the index of last read frame
+
     void _cleanup() {
         is_open_ = false;
         is_eof_ = false;
-        read_idx_ = -1;
-        // decoding
-        err_again_ = false;
-        frame_ = nullptr;  // handled by creators (stream)
         // ffmpeg related, must be cleaned in correct order.
         input_streams_.clear();
         video_streams_.clear();
         fmt_ctx_.reset(nullptr);
+        // some properties
+        start_time_ = kNoTimestamp;
+        duration_ = kNoTimestamp;
+        fps_ = {1, 0};
+        tbr_ = {1, 0};
+        // decoding
+        err_again_ = false;
+        frame_ = nullptr;  // handled by creators (stream)
+        // for seeking and reading
+        vidx_ = 0;
+        read_idx_ = -1;
     }
 
-    int _process_packet();
-    void _convert_pix_fmt();
-    int32_t _ts_to_fidx(int64_t);
-    int64_t _fidx_to_ts(int32_t);
-    bool _read_frame();
+    auto _process_packet()    -> int;
+    auto _convert_pix_fmt()   -> void;
+    auto _ts_to_fidx(int64_t) -> int32_t;
+    auto _fidx_to_ts(int32_t) -> int64_t;
+    auto _read_frame()        -> bool;
 public:
 
     VideoReader()
         : is_open_(false)
         , is_eof_(false)
-        , read_idx_(-1)
-        , err_again_(false)
-        , frame_(nullptr)
         , fmt_ctx_(nullptr, AVFormatContextDeleter)
         , input_streams_()
-        , video_streams_() {
+        , video_streams_()
+        , start_time_(kNoTimestamp)
+        , duration_(kNoTimestamp)
+        , fps_({1, 0})
+        , tbr_({1, 0})
+        , err_again_(false)
+        , frame_(nullptr)
+        , vidx_(0)
+        , read_idx_(-1)
+    {
         av_log_set_level(AV_LOG_ERROR);
         _cleanup();
     }
+
     VideoReader(std::string _filepath, std::string _pix_fmt = "bgr") : VideoReader() {
         MediaConfig media_config;
         AVPixelFormat pix_fmt;
@@ -222,7 +248,7 @@ public:
         else if (_pix_fmt == "bgra") { pix_fmt = AV_PIX_FMT_BGRA; }
         else {
             pix_fmt = AV_PIX_FMT_BGR24;
-            spdlog::warn(
+            log::warn(
                 "Unknown pixel format '{}', use 'bgr'. "
                 "Or you can choose one of ['rgb', 'bgr', 'rgba', 'bgra']",
                 _pix_fmt
@@ -232,23 +258,21 @@ public:
         media_config.video.pix_fmt = pix_fmt;
         this->open(_filepath, media_config);
     }
+
     ~VideoReader() {
         _cleanup();
     }
 
-    bool is_open() const { return is_open_; }
-    bool is_eof()  const { return is_eof_ || (read_idx_ + 1 >= n_frames()); }
-    int32_t n_frames() const { return (is_open_) ? video_streams_[0]->n_frames_ : 0; }
-    Timestamp duration() const {
-        return (is_open_)
-            ? AVTimeToTimestamp(video_streams_[0]->stream()->duration, video_streams_[0]->stream()->time_base)
-            : Timestamp(0);
-    }
+    auto is_open()  const -> bool       { return is_open_; }
+    auto is_eof()   const -> bool       { return is_eof_ || (read_idx_ + 1 >= n_frames()); }
+    auto duration() const -> Timestamp  { return (duration_ == kNoTimestamp) ? Timestamp(0) : duration_; }
+    auto n_frames() const -> int32_t    { return (duration_ == kNoTimestamp) ? 0 : av_rescale_q((duration_-start_time_).count(), {1, 1000}, {fps_.den, fps_.num}); }
+    auto fps()      const -> AVRational { return fps_; }
 
     Timestamp current_timestamp() const {
         return (is_open_)
             ? ((frame_) ? AVTimeToTimestamp(frame_->pts, video_streams_[0]->stream()->time_base) : Timestamp(0))
-            : Timestamp(AV_NOPTS_VALUE);
+            : kNoTimestamp;
     }
     int2 resolution() const {
         return (is_open_)

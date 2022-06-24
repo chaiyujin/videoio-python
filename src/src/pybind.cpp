@@ -9,8 +9,6 @@ using NpImage = py::array_t<uint8_t, py::array::c_style>;
 
 std::pair<bool, NpImage> _Read(ffutils::VideoReader & _reader) {
 
-    // spdlog::set_level(spdlog::level::debug);
-
     static size_t shape_empty[3] = { 0, 0, 0 };
     static NpImage empty(shape_empty);
 
@@ -25,7 +23,7 @@ std::pair<bool, NpImage> _Read(ffutils::VideoReader & _reader) {
     auto const h = frame->height;
     auto const w = frame->width;
     auto const s = frame->linesize[0];
-    // spdlog::warn("h {}, w {}, s{}\n", h, w, s);
+    // log::warn("h {}, w {}, s{}\n", h, w, s);
 
     int chs = s / w;  // TODO: channels
     size_t shape[3] = { (size_t)h, (size_t)w, (size_t)chs };
@@ -55,12 +53,14 @@ PYBIND11_MODULE(ffutils, m) {
             return std::pair<int, int>(res.x, res.y);
         })
         .def_property_readonly("width", [](ffutils::VideoReader const & r) {
-            auto res = r.resolution();
-            return res.x;
+            return r.resolution().x;
         })
         .def_property_readonly("height", [](ffutils::VideoReader const & r) {
-            auto res = r.resolution();
-            return res.y;
+            return r.resolution().y;
+        })
+        .def_property_readonly("fps", [](ffutils::VideoReader const & r) {
+            auto fps = r.fps();
+            return (double)fps.num / (double)fps.den;
         })
         .def("seek_frame", &ffutils::VideoReader::seek)
         .def("seek_msec", &ffutils::VideoReader::seekTime)

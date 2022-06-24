@@ -12,10 +12,8 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
     AVFormatContext * fmt = nullptr;
     ret = avformat_open_input(&fmt, _filepath.c_str(), NULL, NULL);
     if (ret < 0) {
-        spdlog::error(
-            "[ffmeg::VideoReader]: Cannot open input file '{}': {}.",
-            _filepath, av_err2str(ret)
-        );
+        log::error("[ffmeg::VideoReader]: Cannot open input file '{}': {}.",
+                   _filepath, av_err2str(ret));
         return false;
     }
     fmt_ctx_.reset(fmt);
@@ -23,20 +21,11 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
     // Find stream information
     ret = avformat_find_stream_info(fmt_ctx_.get(), NULL);
     if (ret < 0) {
-        spdlog::error(
-            "[ffmeg::VideoReader]: Could not find stream information: {}.",
-            av_err2str(ret)
-        );
+        log::error("[ffmeg::VideoReader]: Could not find stream information: {}.",
+                   av_err2str(ret));
         this->_cleanup();
         return false;
     }
-
-    // Start timestamp
-    auto start_time = Timestamp(0);
-    if (fmt_ctx_->start_time != AV_NOPTS_VALUE) {
-        start_time = AVTimeToTimestamp(fmt_ctx_->start_time);
-    }
-    spdlog::debug("media start time {}", start_time);
 
     // Open streams
     for (uint32_t i = 0; i < fmt_ctx_->nb_streams; i++) {
@@ -46,7 +35,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         std::string     codec_name = avcodec_get_name(codec_id);
         AVCodec const * dec        = avcodec_find_decoder(codec_id);
         if (dec == nullptr) {
-            spdlog::warn(
+            log::warn(
                 "[ffmpeg::VideoReader]: Failed to find codec"
                 " for stream {} of codec {}(id: {}).",
                 i, codec_name, codec_id
@@ -56,7 +45,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         }
         AVCodecContext * dec_ctx = avcodec_alloc_context3(dec);
         if (dec_ctx == nullptr) {
-            spdlog::warn(
+            log::warn(
                 "[ffmpeg::VideoReader]: Failed to allocate context"
                 " for stream {} of codec {}(id: {}).",
                 i, codec_name, codec_id
@@ -65,7 +54,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         }
         ret = avcodec_parameters_to_context(dec_ctx, stream->codecpar);
         if (ret < 0) {
-            spdlog::warn(
+            log::warn(
                 "[ffmpeg::VideoReader]: Failed to copy codec parameters"
                 " to input decoder context for stream {} of codec {}(id: {})."
                 " Detail: {}",
@@ -74,18 +63,10 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
             continue;
         }
 
-        // ignore other codec_type
+        // ! Ignore other codec_type
         if (dec_ctx->codec_type != AVMEDIA_TYPE_VIDEO) {
             input_streams_.push_back(nullptr);
             continue;
-        }
-
-        spdlog::debug("stream {}, start {}", i, stream->start_time);
-
-        // if video
-        if (dec_ctx->codec_type == AVMEDIA_TYPE_VIDEO) {
-            dec_ctx->framerate = av_guess_frame_rate(fmt_ctx_.get(), stream, NULL);
-            // spdlog::debug("stream {}, video, fps: {}", i, dec_ctx->framerate);
         }
 
         // set codec to automatically determine how many threads suits best for the decoding job
@@ -96,12 +77,12 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
             dec_ctx->thread_type = FF_THREAD_SLICE;
         else
             dec_ctx->thread_count = 1; //don't use multithreading
-        // spdlog::debug("codec ctx thread: {}", dec_ctx->thread_count);
+        // log::debug("codec ctx thread: {}", dec_ctx->thread_count);
 
         // Open decoder
         ret = avcodec_open2(dec_ctx, dec, NULL);
         if (ret < 0) {
-            spdlog::error("[ffmpeg::VideoReader]: Failed to open decoder for stream {}", i);
+            log::error("[ffmpeg::VideoReader]: Failed to open decoder for stream {}", i);
             this->_cleanup();
             return false;
         }
@@ -126,7 +107,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
             config.video.resolution = (prod(config.video.resolution) == 0)
                 ? int2({ (int32_t)dec_ctx->width, (int32_t)dec_ctx->height })
                 : config.video.resolution;
-            config.video.fps = {dec_ctx->framerate.num, dec_ctx->framerate.den};
+            config.video.fps = {stream->avg_frame_rate.num, stream->avg_frame_rate.den};
 
             // rotation
             auto * rotateTag = av_dict_get(st->stream()->metadata, "rotate", NULL, 0);
@@ -145,7 +126,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
             if (decPixFmt != tarPixFmt) {
                 // char buf[2048];
                 // av_get_pix_fmt_string(buf, 2048, decPixFmt);
-                // spdlog::info("context: {}", buf);
+                // log::info("context: {}", buf);
                 st->set_sws_ctx(sws_getContext(
                     dec_ctx->width,
                     dec_ctx->height,
@@ -156,7 +137,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
                     SWS_BICUBIC, NULL, NULL, NULL
                 ));
                 if (!st->sws_ctx()) {
-                    spdlog::error("[ffmpeg::VideoReader]: Could not initialize the sws context");
+                    log::error("[ffmpeg::VideoReader]: Could not initialize the sws context");
                     this->_cleanup();
                     return false;
                 }
@@ -169,8 +150,32 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
     }
 
     is_open_ = (video_streams_.size() > 0);
+    vidx_ = 0;  // ! Only use the first track
     if (!is_open_) {
+        log::debug("Failed to open, cleanup");
         this->_cleanup();
+    } else {
+        // Get start_time, duration from fmt_ctx
+        if (fmt_ctx_->start_time != AV_NOPTS_VALUE) {
+            start_time_ = AVTimeToTimestamp(fmt_ctx_->start_time);
+        }
+        if (fmt_ctx_->duration != AV_NOPTS_VALUE) {
+            duration_ = AVTimeToTimestamp(fmt_ctx_->duration);
+        }
+        // Get from the video stream
+        auto * st = video_streams_[vidx_]->stream();
+        auto & cfg = video_streams_[vidx_]->config();
+        if (st->start_time != AV_NOPTS_VALUE) {
+            start_time_ = AVTimeToTimestamp(st->start_time, st->time_base);
+        }
+        if (st->duration != AV_NOPTS_VALUE) {
+            duration_ = AVTimeToTimestamp(st->duration, st->time_base);
+        }
+        fps_ = st->avg_frame_rate;
+        tbr_ = st->r_frame_rate;
+
+        log::debug("num of video streams: {}", video_streams_.size());
+        log::debug("media start time {}, duration {}, fps {}, tbr {}", start_time_, duration_, fps_, tbr_);
     }
 
     return is_open_;
@@ -209,7 +214,7 @@ int VideoReader::_process_packet() {
     }
 
     // bool keyframe = !!(pkt.flags & AV_PKT_FLAG_KEY);
-    // spdlog::info("keyframe? {}, {}, {}", keyframe, pkt.pts, pkt.dts);
+    // log::info("keyframe? {}, {}, {}", keyframe, pkt.pts, pkt.dts);
 
     // video
     if (st->type() == AVMEDIA_TYPE_VIDEO) {
@@ -342,7 +347,7 @@ bool VideoReader::seek(int32_t _frame_idx) {
     for (size_t i = 0; i < st->buffer().size(); ++i) {
         auto * frm = st->buffer().offset_front(i);
         if (this->_ts_to_fidx(frm->pts) == _frame_idx) {
-            // spdlog::debug("find in buffer! {}, {}, {}", frm->pts, this->_ts_to_fidx(frm->pts), _frame_idx);
+            // log::debug("find in buffer! {}, {}, {}", frm->pts, this->_ts_to_fidx(frm->pts), _frame_idx);
             in_buffer = true;
             frame_ = frm;
             break;
@@ -358,9 +363,9 @@ bool VideoReader::seek(int32_t _frame_idx) {
             // seek the nearest key frame
             auto timestamp = _fidx_to_ts(_frame_idx);
             int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
-            // spdlog::debug("seek frame: {}, ts: {}, {}", _frame_idx, timestamp, _ts_to_fidx(timestamp));
+            // log::debug("seek frame: {}, ts: {}, {}", _frame_idx, timestamp, _ts_to_fidx(timestamp));
         } else {
-            // spdlog::debug("near ! frame: {}, {}, {}", last_idx, _frame_idx, SEEKING_TRIGGER_HOP);
+            // log::debug("near ! frame: {}, {}, {}", last_idx, _frame_idx, SEEKING_TRIGGER_HOP);
         }
 
         // read until the right frame
@@ -379,7 +384,7 @@ bool VideoReader::seek(int32_t _frame_idx) {
                 break;
             }
             cur = this->_ts_to_fidx(frame_->pts);
-            // spdlog::debug("  got frame at {}, {}", frame_->pts, cur);
+            // log::debug("  got frame at {}, {}", frame_->pts, cur);
         }
     }
 

@@ -1,4 +1,6 @@
 #include "common.hpp"
+#include <vector>
+#include <string>
 
 namespace ffutils {
 
@@ -52,7 +54,7 @@ AVFrame *AllocateFrame(
     int                 nbSamples
 ) {
     AVFrame *frame = av_frame_alloc();
-    if (!frame) { spdlog::critical("[ffmpeg] Error allocating an audio fram"); }
+    if (!frame) { log::critical("[ffmpeg] Error allocating an audio fram"); }
     frame->format         = sampleFmt;
     frame->channel_layout = channelLayout;
     frame->sample_rate    = sampleRate;
@@ -61,7 +63,7 @@ AVFrame *AllocateFrame(
     if (nbSamples)
     {
         int ret = av_frame_get_buffer(frame, 0);
-        if (ret < 0) { spdlog::critical("[ffmpeg] Error allocating an audio buffer"); }
+        if (ret < 0) { log::critical("[ffmpeg] Error allocating an audio buffer"); }
     }
     return frame;
 }
@@ -83,7 +85,7 @@ AVFrame *AllocateFrame(
 
     /* allocate the buffers for the frame data */
     ret = av_frame_get_buffer(picture, 32);
-    if (ret < 0) { spdlog::critical("[ffmpeg] Could not allocate frame data: {}", av_err2str(ret)); }
+    if (ret < 0) { log::critical("[ffmpeg] Could not allocate frame data: {}", av_err2str(ret)); }
 
     return picture;
 }
@@ -103,7 +105,7 @@ std::vector<float> Resample(const std::vector<float> &audio, int srcSampleRate, 
         /* create resampler context */
         swrCtxPtr = swr_alloc();
         if (!swrCtxPtr) {
-            spdlog::error("[ffmpeg] Could not allocate resampler context");
+            log::error("[ffmpeg] Could not allocate resampler context");
             ret = AVERROR(ENOMEM);
             break; // goto end;
         }
@@ -119,7 +121,7 @@ std::vector<float> Resample(const std::vector<float> &audio, int srcSampleRate, 
 
         /* initialize the resampling context */
         if ((ret = swr_init(swrCtxPtr)) < 0) {
-            spdlog::error("[ffmpeg] Failed to initialize the resampling context");
+            log::error("[ffmpeg] Failed to initialize the resampling context");
             break; // goto end;
         }
 
@@ -129,7 +131,7 @@ std::vector<float> Resample(const std::vector<float> &audio, int srcSampleRate, 
         ret = av_samples_alloc_array_and_samples(&srcData, &srcLineSize, srcNumChannels,
                                                  srcNumSamples, AV_SAMPLE_FMT_FLT, 0);
         if (ret < 0) {
-            spdlog::error("[ffmpeg] Could not allocate source samples");
+            log::error("[ffmpeg] Could not allocate source samples");
             break;  // goto end;
         }
 
@@ -143,7 +145,7 @@ std::vector<float> Resample(const std::vector<float> &audio, int srcSampleRate, 
         ret = av_samples_alloc_array_and_samples(&dstData, &dstLineSize, dstNumChannels,
                                                  dstNumSamples, AV_SAMPLE_FMT_FLT, 0);
         if (ret < 0) {
-            spdlog::error("[ffmpeg] Could not allocate destination samples");
+            log::error("[ffmpeg] Could not allocate destination samples");
             break; /* goto end; */
         }
 
@@ -167,12 +169,12 @@ std::vector<float> Resample(const std::vector<float> &audio, int srcSampleRate, 
             /* convert to destination format */
             ret = swr_convert(swrCtxPtr, dstData, dstNumSamples, (const uint8_t **)srcData, srcNumSamples);
             if (ret < 0) {
-                spdlog::error("[ffmpeg] Error while converting");
+                log::error("[ffmpeg] Error while converting");
                 break; /* goto end; */
             }
             dstBufferSize = av_samples_get_buffer_size(&dstLineSize, dstNumChannels, ret, AV_SAMPLE_FMT_FLT, 1);
             if (dstBufferSize < 0) {
-                spdlog::error("[ffmpeg] Could not get sample buffer size");
+                log::error("[ffmpeg] Could not get sample buffer size");
                 break; /* goto end; */
             }
             for (int si = 0; si < ret; ++si) {
