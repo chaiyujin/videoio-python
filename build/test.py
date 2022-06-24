@@ -15,7 +15,6 @@ def test_cv2():
     n_frames = int(reader.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = reader.get(cv2.CAP_PROP_FPS)
     print(n_frames, fps)
-    return
     for ifrm in range(n_frames):
         if ifrm == 20:
             break
@@ -31,30 +30,27 @@ def test_ffutils():
     import ffutils
     reader = ffutils.VideoReader(test_vpath)
     print(reader.resolution, reader.width, reader.height, reader.n_frames, reader.fps)
-    quit()
 
-    for i in range(100):
-        print(reader.n_frames, reader.duration)
-        idx = np.random.randint(0, reader.n_frames)
-        msec = idx * 1000 / 30
-        with timeit("seek {}, {:.3f}".format(idx, msec)):
-            reader.seek_msec(msec)
-            ret, img = reader.read()
-        # if ret:
-        #     cv2.imshow('img', img)
-        #     cv2.waitKey(0)
+    # for i in range(100):
+    #     print(reader.n_frames, reader.duration)
+    #     idx = np.random.randint(0, reader.n_frames)
+    #     msec = idx * 1000 / reader.fps
+    #     with timeit("seek {}, {:.3f}".format(idx, msec)):
+    #         reader.seek_msec(msec)
+    #         ret, img = reader.read()
+    #     # if ret:
+    #     #     cv2.imshow('img', img)
+    #     #     cv2.waitKey(0)
 
     for ifrm in range(reader.n_frames):
         if ifrm == 10:
             break
         with timeit("read"):
             ret, img = reader.read()
-        print(img.shape)
         if not ret:
             break
         # cv2.imshow('img', img)
         # cv2.waitKey(0)
-
 
 test_cv2()
 test_ffutils()

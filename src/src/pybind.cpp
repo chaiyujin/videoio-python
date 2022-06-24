@@ -34,7 +34,6 @@ std::pair<bool, NpImage> _Read(ffutils::VideoReader & _reader) {
     return {true, std::move(ret)};
 }
 
-
 PYBIND11_MODULE(ffutils, m) {
     py::class_<ffutils::VideoReader>(m, "VideoReader")
         .def(py::init<std::string>())

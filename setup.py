@@ -2,6 +2,7 @@ import os
 import sys
 import pathlib
 
+from pybind11 import get_cmake_dir
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext as build_ext_orig
 
@@ -50,6 +51,7 @@ class build_ext(build_ext_orig):
             '-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + str(extdir.absolute()),
             '-DCMAKE_BUILD_TYPE=' + config,
             '-DPYTHON_EXECUTABLE=' + sys.executable,
+            '-Dpybind11_DIR=' + get_cmake_dir(),
         ]
 
         # example of build args
@@ -69,7 +71,7 @@ class build_ext(build_ext_orig):
 
 setup(
     name='ffutils',
-    version='v0.0.1',
+    version='0.0.1',
     packages=['ffutils'],
     ext_modules=[
         CMakeExtension('ffutils.bind.ffutils'),
@@ -78,7 +80,6 @@ setup(
         'build_ext': build_ext,
     },
     install_requires=[
-        'plyfile',
         'numpy'
     ]
 )
