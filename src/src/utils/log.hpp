@@ -11,7 +11,7 @@
 #include <backward.hpp>
 #endif
 
-namespace log {
+namespace snow::log {
 
 #if defined(BACKWARD_ENABLED)
 inline void print_stack_trace() {

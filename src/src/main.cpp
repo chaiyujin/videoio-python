@@ -24,32 +24,32 @@ static void SaveFrame(AVFrame *pFrame, int width, int height, int iFrame) {
 }
 
 int main(int argc, char *argv[]) {
-    // log::set_level(log::level::debug);
+    // snow::log::set_level(snow::log::level::debug);
 
     ffutils::VideoReader reader;
     ffutils::MediaConfig cfg;
     // cfg.video.resolution = {320, 180};
     if (!reader.open(argv[1], cfg)) {
-        log::error("Failed to open video!");
+        snow::log::error("Failed to open video!");
     }
 
     bool got = false;
 
     // if (reader.is_open()) {
-    //     log::info("n_frames: {}", reader.n_frames());
+    //     snow::log::info("n_frames: {}", reader.n_frames());
     //     for (int32_t tar = 0; tar < 10; ++tar)
     //     {
     //         Timeit _(fmt::format("seek frame {}", tar));
     //         reader.seek(tar);
-    //         log::info("duration: {}", reader.duration());
+    //         snow::log::info("duration: {}", reader.duration());
     //         // SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar);
     //     }
-    //     log::info("n_frames: {}", reader.n_frames());
-    //     log::info("current timestamp: {}", reader.current_timestamp());
+    //     snow::log::info("n_frames: {}", reader.n_frames());
+    //     snow::log::info("current timestamp: {}", reader.current_timestamp());
     // }
 
     if (reader.is_open()) {
-        log::info("n_frames: {}", reader.n_frames());
+        snow::log::info("n_frames: {}", reader.n_frames());
         reader.seek(8000);
         for (int32_t tar = 0; tar < 10; ++tar) {
             fmt::print("test\n");
@@ -62,8 +62,8 @@ int main(int argc, char *argv[]) {
             reader.read();
             SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar + 100);
         }
-        log::info("n_frames: {}", reader.n_frames());
-        log::info("current timestamp: {}", reader.current_timestamp());
+        snow::log::info("n_frames: {}", reader.n_frames());
+        snow::log::info("current timestamp: {}", reader.current_timestamp());
     }
 
     return 0;

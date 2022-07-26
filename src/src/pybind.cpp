@@ -23,7 +23,7 @@ std::pair<bool, NpImage> _Read(ffutils::VideoReader & _reader) {
     auto const h = frame->height;
     auto const w = frame->width;
     auto const s = frame->linesize[0];
-    // log::warn("h {}, w {}, s{}\n", h, w, s);
+    // snow::log::warn("h {}, w {}, s{}\n", h, w, s);
 
     int chs = s / w;  // TODO: channels
     size_t shape[3] = { (size_t)h, (size_t)w, (size_t)chs };

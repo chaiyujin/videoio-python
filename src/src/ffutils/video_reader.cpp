@@ -12,7 +12,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
     AVFormatContext * fmt = nullptr;
     ret = avformat_open_input(&fmt, _filepath.c_str(), NULL, NULL);
     if (ret < 0) {
-        log::error("[ffmeg::VideoReader]: Cannot open input file '{}': {}.",
+        snow::log::error("[ffmeg::VideoReader]: Cannot open input file '{}': {}.",
                    _filepath, av_err2str(ret));
         return false;
     }
@@ -21,7 +21,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
     // Find stream information
     ret = avformat_find_stream_info(fmt_ctx_.get(), NULL);
     if (ret < 0) {
-        log::error("[ffmeg::VideoReader]: Could not find stream information: {}.",
+        snow::log::error("[ffmeg::VideoReader]: Could not find stream information: {}.",
                    av_err2str(ret));
         this->_cleanup();
         return false;
@@ -35,7 +35,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         std::string     codec_name = avcodec_get_name(codec_id);
         AVCodec const * dec        = avcodec_find_decoder(codec_id);
         if (dec == nullptr) {
-            log::warn(
+            snow::log::warn(
                 "[ffmpeg::VideoReader]: Failed to find codec"
                 " for stream {} of codec {}(id: {}).",
                 i, codec_name, codec_id
@@ -45,7 +45,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         }
         AVCodecContext * dec_ctx = avcodec_alloc_context3(dec);
         if (dec_ctx == nullptr) {
-            log::warn(
+            snow::log::warn(
                 "[ffmpeg::VideoReader]: Failed to allocate context"
                 " for stream {} of codec {}(id: {}).",
                 i, codec_name, codec_id
@@ -54,7 +54,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         }
         ret = avcodec_parameters_to_context(dec_ctx, stream->codecpar);
         if (ret < 0) {
-            log::warn(
+            snow::log::warn(
                 "[ffmpeg::VideoReader]: Failed to copy codec parameters"
                 " to input decoder context for stream {} of codec {}(id: {})."
                 " Detail: {}",
@@ -77,12 +77,12 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
             dec_ctx->thread_type = FF_THREAD_SLICE;
         else
             dec_ctx->thread_count = 1; //don't use multithreading
-        // log::debug("codec ctx thread: {}", dec_ctx->thread_count);
+        // snow::log::debug("codec ctx thread: {}", dec_ctx->thread_count);
 
         // Open decoder
         ret = avcodec_open2(dec_ctx, dec, NULL);
         if (ret < 0) {
-            log::error("[ffmpeg::VideoReader]: Failed to open decoder for stream {}", i);
+            snow::log::error("[ffmpeg::VideoReader]: Failed to open decoder for stream {}", i);
             this->_cleanup();
             return false;
         }
@@ -126,7 +126,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
             if (decPixFmt != tarPixFmt) {
                 // char buf[2048];
                 // av_get_pix_fmt_string(buf, 2048, decPixFmt);
-                // log::info("context: {}", buf);
+                // snow::log::info("context: {}", buf);
                 st->set_sws_ctx(sws_getContext(
                     dec_ctx->width,
                     dec_ctx->height,
@@ -137,7 +137,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
                     SWS_BICUBIC, NULL, NULL, NULL
                 ));
                 if (!st->sws_ctx()) {
-                    log::error("[ffmpeg::VideoReader]: Could not initialize the sws context");
+                    snow::log::error("[ffmpeg::VideoReader]: Could not initialize the sws context");
                     this->_cleanup();
                     return false;
                 }
@@ -152,7 +152,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
     is_open_ = (video_streams_.size() > 0);
     vidx_ = 0;  // ! Only use the first track
     if (!is_open_) {
-        log::debug("Failed to open, cleanup");
+        snow::log::debug("Failed to open, cleanup");
         this->_cleanup();
     } else {
         // Get start_time, duration from fmt_ctx
@@ -174,8 +174,8 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         fps_ = st->avg_frame_rate;
         tbr_ = st->r_frame_rate;
 
-        log::debug("num of video streams: {}", video_streams_.size());
-        log::debug("media start time {}, duration {}, fps {}, tbr {}", start_time_, duration_, fps_, tbr_);
+        snow::log::debug("num of video streams: {}", video_streams_.size());
+        snow::log::debug("media start time {}, duration {}, fps {}, tbr {}", start_time_, duration_, fps_, tbr_);
     }
 
     return is_open_;
@@ -216,7 +216,7 @@ int VideoReader::_process_packet() {
     // try decode first
     ret = _decodeFrame(video_streams_[0]);
     if (ret == 0 || ret == AVERROR_EOF) {
-        // log::warn("flush buffered frames.");
+        // snow::log::warn("flush buffered frames.");
         if (got_frame) {
             _copyResults(video_streams_[0]);
         }
@@ -235,7 +235,7 @@ int VideoReader::_process_packet() {
 
     // Error EOF
     if (ret == AVERROR_EOF) {
-        log::debug("  EOF!!! stream_index {}", pkt.stream_index);
+        snow::log::debug("  EOF!!! stream_index {}", pkt.stream_index);
         av_packet_unref(&pkt);
         // ! Don't return now, because some frames maybe cached in the decoder.
     }
@@ -380,7 +380,7 @@ bool VideoReader::seek(int32_t _frame_idx) {
     for (size_t i = 0; i < st->buffer().size(); ++i) {
         auto * frm = st->buffer().offset_front(i);
         if (this->_ts_to_fidx(frm->pts) == _frame_idx) {
-            // log::debug("find in buffer! {}, {}, {}", frm->pts, this->_ts_to_fidx(frm->pts), _frame_idx);
+            // snow::log::debug("find in buffer! {}, {}, {}", frm->pts, this->_ts_to_fidx(frm->pts), _frame_idx);
             in_buffer = true;
             frame_ = frm;
             break;
@@ -397,14 +397,14 @@ bool VideoReader::seek(int32_t _frame_idx) {
             auto * stream = video_streams_[sidx]->stream();
             auto timestamp = _fidx_to_ts(_frame_idx);
             int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
-            log::debug(
+            snow::log::debug(
                 "seek frame: {}, ts: {}, {}",
                 _frame_idx,
                 AVTimeToTimestamp(timestamp, stream->time_base),
                 _ts_to_fidx(timestamp)
             );
         } else {
-            log::debug("near frame: {}, {}, {}", last_idx, _frame_idx, SEEKING_TRIGGER_HOP);
+            snow::log::debug("near frame: {}, {}, {}", last_idx, _frame_idx, SEEKING_TRIGGER_HOP);
         }
 
         // read until the right frame
@@ -416,15 +416,15 @@ bool VideoReader::seek(int32_t _frame_idx) {
         // ! cannot use 'cur < _frame_idx' to judge, due to B-frame (need future frames to decode)
         // while (cur != _frame_idx) {
         while (cur != _frame_idx) {
-            log::debug("  cur {}, target {}", cur, _frame_idx);
+            snow::log::debug("  cur {}, target {}", cur, _frame_idx);
             // no frame got, eof
             bool got = this->_read_frame();
-            log::debug("  read new frame: got? {}", got);
+            snow::log::debug("  read new frame: got? {}", got);
             if (!got) {
                 break;
             }
             cur = this->_ts_to_fidx(frame_->pts);
-            log::debug("  got frame at {}, {}", frame_->pts, cur);
+            snow::log::debug("  got frame at {}, {}", frame_->pts, cur);
         }
     }
 

@@ -2,6 +2,7 @@
 
 #include "common.hpp"
 #include "stream.hpp"
+#include <assert.h>
 #include <string>
 #include <vector>
 #include <memory>
@@ -14,7 +15,7 @@ class VideoReader;
 
 inline void AVFormatContextDeleter(AVFormatContext *ctx) {
     if (ctx) {
-        log::debug("avformat_close_input");
+        snow::log::debug("avformat_close_input");
         avformat_close_input(&ctx);
     }
 }
@@ -248,7 +249,7 @@ public:
         else if (_pix_fmt == "bgra") { pix_fmt = AV_PIX_FMT_BGRA; }
         else {
             pix_fmt = AV_PIX_FMT_BGR24;
-            log::warn(
+            snow::log::warn(
                 "Unknown pixel format '{}', use 'bgr'. "
                 "Or you can choose one of ['rgb', 'bgr', 'rgba', 'bgra']",
                 _pix_fmt
