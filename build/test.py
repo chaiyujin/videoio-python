@@ -5,11 +5,12 @@ from tqdm import trange, tqdm
 from timeit import timeit
 
 # test_vpath = os.path.expanduser("~/Movies/test_4k.webm")
-test_vpath = os.path.expanduser("~/Movies/hello.flv")
+# test_vpath = os.path.expanduser("~/Movies/hello.flv")
 # test_vpath = os.path.expanduser("~/Movies/ours-full.mp4")
 # test_vpath = os.path.expanduser("~/Movies/cc-by/indentfy the pay off your services are giving [C90sXVMN2rE].webm")
 # test_vpath = os.path.expanduser("~/Videos/30fps.mp4")
 # test_vpath = "../assets/050.mp4"
+test_vpath = os.path.expanduser("~/Videos/iu/IU.mp4")
 
 
 def test_cv2():
@@ -51,8 +52,12 @@ def test_ffutils():
     #     #     cv2.imshow('img', img)
     #     #     cv2.waitKey(0)
 
-    reader.seek_msec(7000 / reader.fps * 1000)
-    # reader.seek_frame(8000)
+    # reader.seek_msec(7000 / reader.fps * 1000)
+    reader.seek_frame(200)
+    reader.read()
+    reader.read()
+    print(reader.curr_iframe)
+    quit()
     for ifrm in range(reader.n_frames):
         with timeit("read"):
             ret, img = reader.read()

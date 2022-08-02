@@ -275,6 +275,11 @@ public:
             ? ((frame_) ? AVTimeToTimestamp(frame_->pts, video_streams_[0]->stream()->time_base) : Timestamp(0))
             : kNoTimestamp;
     }
+    int32_t current_iframe() const {
+        return (is_open_)
+            ? ((frame_) ? av_rescale_q(frame_->pts, video_streams_[0]->stream()->time_base, {fps_.den, fps_.num}) : 0)
+            : -1;
+    }
     int2 resolution() const {
         return (is_open_)
             ? video_streams_[0]->config().video.resolution

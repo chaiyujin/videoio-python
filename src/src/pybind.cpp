@@ -47,6 +47,9 @@ PYBIND11_MODULE(ffutils, m) {
             auto ts = r.current_timestamp();
             return cast<MsDouble>(ts).count();
         })
+        .def_property_readonly("curr_iframe", [](ffutils::VideoReader const & r) {
+            return r.current_iframe();
+        })
         .def_property_readonly("resolution", [](ffutils::VideoReader const & r) {
             auto res = r.resolution();
             return std::pair<int, int>(res.x, res.y);
