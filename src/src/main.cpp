@@ -50,20 +50,19 @@ int main(int argc, char *argv[]) {
 
     if (reader.is_open()) {
         snow::log::info("n_frames: {}", reader.n_frames());
-        reader.seek(8000);
+        reader.seek(880);
+        reader.seek(884);
+        reader.seek(0);
         for (int32_t tar = 0; tar < 10; ++tar) {
-            fmt::print("test\n");
-            Timeit _(fmt::format("seek frame {}", tar));
             reader.read();
+            fmt::print("get {}\n", reader.current_iframe());
             SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar);
         }
-        for (int32_t tar = 0; tar < 10; ++tar) {
-            Timeit _(fmt::format("seek frame {}", tar + 100));
-            reader.read();
-            SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar + 100);
-        }
-        snow::log::info("n_frames: {}", reader.n_frames());
-        snow::log::info("current timestamp: {}", reader.current_timestamp());
+        // for (int32_t tar = 0; tar < 10; ++tar) {
+        //     Timeit _(fmt::format("seek frame {}", tar + 100));
+        //     reader.read();
+        //     SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar + 100);
+        // }
     }
 
     return 0;

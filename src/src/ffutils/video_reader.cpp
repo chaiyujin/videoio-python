@@ -188,6 +188,7 @@ int VideoReader::_process_packet() {
 
     err_again_ = false;
     if (!fmt_ctx_) {
+        snow::log::error("[_process_packet]: fmt_ctx is not valid");
         return AVERROR_EOF;
     }
 
@@ -215,16 +216,18 @@ int VideoReader::_process_packet() {
 
     // try decode first
     ret = _decodeFrame(video_streams_[0]);
+    // snow::log::warn("[_process_packet]: {}", av_err2str(ret));
     if (ret == 0 || ret == AVERROR_EOF) {
         // snow::log::warn("flush buffered frames.");
         if (got_frame) {
             _copyResults(video_streams_[0]);
+            return ret;
         }
-        return ret;
     }
 
     // read frame
     ret = av_read_frame(fmt_ctx_.get(), &pkt);
+    // snow::log::warn("[_process_packet]: {}", av_err2str(ret));
 
     // Error Again: we need to read again, just return
     if (ret == AVERROR(EAGAIN)) {
@@ -249,12 +252,13 @@ int VideoReader::_process_packet() {
     if (!st || st != video_streams_[0]) {
         err_again_ = true;  // !HACK: abuse err_again_ here, it's a not needed stream
         av_packet_unref(&pkt);
-        return ret;  // EOF or EAGAIN
+        return AVERROR(EAGAIN);  // HACK: abuse EAGAIN
     }
 
     // process frame
     if (st->type() == AVMEDIA_TYPE_VIDEO) {
         Decode(st->codec_ctx(), st->frame(), &got_frame, &pkt);
+        // snow::log::info("{} {}, {}", av_err2str(ret), got_frame, pkt.pts);
 
         if (got_frame) {
             _copyResults(st);
@@ -298,6 +302,7 @@ bool VideoReader::_read_frame() {
     do {
         int ret = this->_process_packet();
         if (ret == AVERROR_EOF) {
+            snow::log::debug("[_read_frame]: eof");
             this->is_eof_ = true;
             return false;
         }
@@ -374,7 +379,7 @@ bool VideoReader::seek(int32_t _frame_idx) {
         read_idx_ = _frame_idx - 1;
         return true;
     }
-    
+
     // > Case 2: it's in frame buffer
     bool in_buffer = false;
     for (size_t i = 0; i < st->buffer().size(); ++i) {
@@ -396,6 +401,11 @@ bool VideoReader::seek(int32_t _frame_idx) {
             // seek the nearest key frame
             auto * stream = video_streams_[sidx]->stream();
             auto timestamp = _fidx_to_ts(_frame_idx);
+            // Flush the decoder if seek backward
+            if (_frame_idx < last_idx) {
+                snow::log::debug("flush decoder");
+                avcodec_flush_buffers(st->codec_ctx());
+            }
             int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
             snow::log::debug(
                 "seek frame: {}, ts: {}, {}",
@@ -419,12 +429,12 @@ bool VideoReader::seek(int32_t _frame_idx) {
             snow::log::debug("  cur {}, target {}", cur, _frame_idx);
             // no frame got, eof
             bool got = this->_read_frame();
-            snow::log::debug("  read new frame: got? {}", got);
+            // snow::log::debug("  read new frame: got? {}", got);
             if (!got) {
                 break;
             }
             cur = this->_ts_to_fidx(frame_->pts);
-            snow::log::debug("  got frame at {}, {}", frame_->pts, cur);
+            // snow::log::debug("  got frame at {}, {}", frame_->pts, cur);
         }
     }
 
