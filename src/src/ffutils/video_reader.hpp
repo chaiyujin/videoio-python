@@ -131,6 +131,7 @@ class InputStream : public Stream {
     int64_t curr_pts_;         // current pts of the decoded frame  (in AV_TIME_BASE units)
     int32_t video_stream_idx_; // stream index in all video streams
     int32_t audio_stream_idx_; // stream index in all audio streams
+    int32_t stream_idx_;       // stream index in all streams
 
     // count frames
     int32_t n_frames_;
@@ -148,6 +149,7 @@ public:
         , curr_pts_(AV_NOPTS_VALUE)
         , video_stream_idx_(-1)
         , audio_stream_idx_(-1)
+        , stream_idx_(-1)
         , n_frames_(0)
         , frame_buffer_()
     {}
@@ -160,7 +162,7 @@ public:
         start_ts_ = AV_NOPTS_VALUE;
         next_dts_ = curr_dts_ = AV_NOPTS_VALUE;
         next_pts_ = curr_pts_ = AV_NOPTS_VALUE;
-        video_stream_idx_ = audio_stream_idx_ = -1;
+        video_stream_idx_ = audio_stream_idx_ = stream_idx_ = -1;
         n_frames_ = 0;
         frame_buffer_.clear();
     }
@@ -216,8 +218,8 @@ class VideoReader {
 
     auto _process_packet()    -> int;
     auto _convert_pix_fmt()   -> void;
-    auto _ts_to_fidx(int64_t) -> int32_t;
-    auto _fidx_to_ts(int32_t) -> int64_t;
+    auto _ts_to_fidx(int64_t) const -> int32_t;
+    auto _fidx_to_ts(int32_t) const -> int64_t;
     auto _read_frame()        -> bool;
 public:
 
@@ -271,14 +273,21 @@ public:
     auto fps()      const -> AVRational { return fps_; }
 
     Timestamp current_timestamp() const {
+        auto * stream = video_streams_[0]->stream();
         return (is_open_)
-            ? ((frame_) ? AVTimeToTimestamp(frame_->pts, video_streams_[0]->stream()->time_base) : Timestamp(0))
+            ? ((frame_) ? AVTimeToTimestamp(frame_->pts - stream->start_time, video_streams_[0]->stream()->time_base) : Timestamp(0))
             : kNoTimestamp;
+        // return (is_open_)
+        //     ? ((frame_) ? AVTimeToTimestamp(frame_->pts, video_streams_[0]->stream()->time_base) : Timestamp(0))
+        //     : kNoTimestamp;
     }
     int32_t current_iframe() const {
         return (is_open_)
-            ? ((frame_) ? av_rescale_q(frame_->pts, video_streams_[0]->stream()->time_base, {fps_.den, fps_.num}) : 0)
+            ? ((frame_) ? _ts_to_fidx(frame_->pts) : 0)
             : -1;
+        // return (is_open_)
+        //     ? ((frame_) ? av_rescale_q(frame_->pts, video_streams_[0]->stream()->time_base, {fps_.den, fps_.num}) : 0)
+        //     : -1;
     }
     int2 resolution() const {
         return (is_open_)

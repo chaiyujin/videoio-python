@@ -51,12 +51,12 @@ int main(int argc, char *argv[]) {
     if (reader.is_open()) {
         snow::log::info("n_frames: {}", reader.n_frames());
         reader.seek(880);
-        reader.seek(884);
-        reader.seek(0);
-        for (int32_t tar = 0; tar < 10; ++tar) {
+        // reader.seek(884);
+        // reader.seek(0);
+        for (int32_t tar = 0; tar < 14; ++tar) {
             reader.read();
             fmt::print("get {}\n", reader.current_iframe());
-            SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, tar);
+            SaveFrame(reader.frame(), reader.frame()->width, reader.frame()->height, reader.current_iframe());
         }
         // for (int32_t tar = 0; tar < 10; ++tar) {
         //     Timeit _(fmt::format("seek frame {}", tar + 100));

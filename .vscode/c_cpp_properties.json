@@ -4,7 +4,8 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${env:HOME}/Software/ffmpeg_build/include"
+                "/usr/local/Cellar/ffmpeg/5.1.1/include"
+                // "${env:HOME}/Software/ffmpeg_build/include"
             ],
             "macFrameworkPath": [],
             "compilerPath": "/usr/local/bin/gcc-11",

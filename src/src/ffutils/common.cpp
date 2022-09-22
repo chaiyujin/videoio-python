@@ -47,6 +47,27 @@ int Encode(
     return ret;
 }
 
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+AVFrame *AllocateFrame(
+    enum AVSampleFormat     sampleFmt,
+    AVChannelLayout const & channelLayout,
+    int                     sampleRate,
+    int                     nbSamples
+) {
+    AVFrame *frame = av_frame_alloc();
+    if (!frame) { snow::log::critical("[ffmpeg] Error allocating an audio fram"); }
+    frame->format      = sampleFmt;
+    frame->ch_layout   = channelLayout;
+    frame->sample_rate = sampleRate;
+    frame->nb_samples  = nbSamples;
+    frame->pts         = AV_NOPTS_VALUE;
+    if (nbSamples) {
+        int ret = av_frame_get_buffer(frame, 0);
+        if (ret < 0) { snow::log::critical("[ffmpeg] Error allocating an audio buffer"); }
+    }
+    return frame;
+}
+#else
 AVFrame *AllocateFrame(
     enum AVSampleFormat sampleFmt,
     uint64_t            channelLayout,
@@ -60,13 +81,13 @@ AVFrame *AllocateFrame(
     frame->sample_rate    = sampleRate;
     frame->nb_samples     = nbSamples;
     frame->pts            = AV_NOPTS_VALUE;
-    if (nbSamples)
-    {
+    if (nbSamples) {
         int ret = av_frame_get_buffer(frame, 0);
         if (ret < 0) { snow::log::critical("[ffmpeg] Error allocating an audio buffer"); }
     }
     return frame;
 }
+#endif
 
 AVFrame *AllocateFrame(
     enum AVPixelFormat pixFmt,
@@ -126,8 +147,11 @@ std::vector<float> Resample(const std::vector<float> &audio, int srcSampleRate, 
         }
 
         /* allocate source and destination samples buffers */
-
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+        srcNumChannels = AVChannelLayout(AV_CHANNEL_LAYOUT_MONO).nb_channels;
+#else
         srcNumChannels = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_MONO);
+#endif
         ret = av_samples_alloc_array_and_samples(&srcData, &srcLineSize, srcNumChannels,
                                                  srcNumSamples, AV_SAMPLE_FMT_FLT, 0);
         if (ret < 0) {
@@ -141,7 +165,11 @@ std::vector<float> Resample(const std::vector<float> &audio, int srcSampleRate, 
         maxDstNumSamples = dstNumSamples = av_rescale_rnd(srcNumSamples, dstSampleRate, srcSampleRate, AV_ROUND_UP);
 
         /* buffer is going to be directly written to a rawaudio file, no alignment */
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+        dstNumChannels = AVChannelLayout(AV_CHANNEL_LAYOUT_MONO).nb_channels;
+#else
         dstNumChannels = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_MONO);
+#endif
         ret = av_samples_alloc_array_and_samples(&dstData, &dstLineSize, dstNumChannels,
                                                  dstNumSamples, AV_SAMPLE_FMT_FLT, 0);
         if (ret < 0) {

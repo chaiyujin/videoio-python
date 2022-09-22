@@ -11,8 +11,8 @@ include(cmake/Fetch.cmake)
 
 # ffmpeg from brew
 if (APPLE)
-    set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg/5.0.1_1")
-    # set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg@4/4.4.2_1")
+    # set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg/5.1.1")
+    set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg@4/4.4.2_3")
     # set(FFmpeg_INSTALL_PATH "~/Software/ffmpeg_build")
 endif (APPLE)
 find_package(FFmpeg REQUIRED)
@@ -33,6 +33,7 @@ list(APPEND link_libraries fmt)
 list(APPEND sources
     src/ffutils/common.cpp
     src/ffutils/video_reader.cpp
+    # src/ffutils/video_writer.cpp
 )
 
 pybind11_add_module       (ffutils ${headers} ${sources} src/pybind.cpp)
@@ -40,9 +41,11 @@ target_include_directories(ffutils PRIVATE ${include_directories})
 target_link_directories   (ffutils PRIVATE ${link_directories})
 target_link_libraries     (ffutils PRIVATE ${link_libraries})
 target_compile_definitions(ffutils PRIVATE ${compile_definitions} ${definitions})
+target_compile_options(ffutils PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(read_video src/main.cpp ${sources})
 target_include_directories(read_video PUBLIC ${include_directories})
 target_link_directories   (read_video PUBLIC ${link_directories})
 target_link_libraries     (read_video PUBLIC ${link_libraries})
 target_compile_definitions(read_video PUBLIC ${compile_definitions} ${definitions})
+# target_compile_options(read_video PRIVATE -Wall -Wextra -Wpedantic -Werror)

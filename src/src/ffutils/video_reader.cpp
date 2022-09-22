@@ -9,14 +9,30 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
     int ret;
 
     // Open input and get format context
+    // AVInputFormat input_fmt = {};
+    // AVInputFormat * input_fmt =av_find_input_format("v4l2");
+
+    AVProbeData pd = AVProbeData {
+        .filename = _filepath.c_str(),
+        .buf      = nullptr,
+        .buf_size = 0,
+    };
+    AVInputFormat * input_fmt = av_probe_input_format(&pd, 0);
+    // input_fmt->flags |= AVFMT_SEEK_TO_PTS | AVFMT_NO_BYTE_SEEK;
     AVFormatContext * fmt = nullptr;
-    ret = avformat_open_input(&fmt, _filepath.c_str(), NULL, NULL);
+    ret = avformat_open_input(&fmt, _filepath.c_str(), input_fmt, NULL);
     if (ret < 0) {
         snow::log::error("[ffmeg::VideoReader]: Cannot open input file '{}': {}.",
                    _filepath, av_err2str(ret));
         return false;
     }
     fmt_ctx_.reset(fmt);
+
+    // // ! SEEK_TO_PTS
+    // if ((fmt->iformat->flags & AVFMT_SEEK_TO_PTS) == 0) {
+    //     snow::log::error("dont seek to pts! {}", fmt->iformat->flags);
+    //     exit(1);
+    // }
 
     // Find stream information
     ret = avformat_find_stream_info(fmt_ctx_.get(), NULL);
@@ -90,13 +106,14 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         // allocate new input stream and set
         auto config = _cfg;
 
-        input_streams_.push_back(std::move(std::make_unique<InputStream>()));
+        input_streams_.push_back(std::make_unique<InputStream>());
         auto & st = input_streams_.back();
         st->set_type(dec_ctx->codec_type);
         st->set_stream(stream);
         st->set_codec(dec);
         st->set_codec_ctx(dec_ctx);
         st->n_frames_ = stream->nb_frames;  // init nb_frames, maybe not accurate
+        st->stream_idx_ = i;
 
         // for specific type
         if (st->type() == AVMEDIA_TYPE_VIDEO) {
@@ -164,7 +181,7 @@ bool VideoReader::open(std::string _filepath, MediaConfig _cfg) {
         }
         // Get from the video stream
         auto * st = video_streams_[vidx_]->stream();
-        auto & cfg = video_streams_[vidx_]->config();
+        // auto & cfg = video_streams_[vidx_]->config();
         if (st->start_time != AV_NOPTS_VALUE) {
             start_time_ = AVTimeToTimestamp(st->start_time, st->time_base);
         }
@@ -258,7 +275,7 @@ int VideoReader::_process_packet() {
     // process frame
     if (st->type() == AVMEDIA_TYPE_VIDEO) {
         Decode(st->codec_ctx(), st->frame(), &got_frame, &pkt);
-        // snow::log::info("{} {}, {}", av_err2str(ret), got_frame, pkt.pts);
+        snow::log::info("{} {}, dts: {}", av_err2str(ret), got_frame, AVTimeToTimestamp(pkt.dts, st->stream()->time_base));
 
         if (got_frame) {
             _copyResults(st);
@@ -317,7 +334,7 @@ bool VideoReader::_read_frame() {
     return true;
 }
 
-int32_t VideoReader::_ts_to_fidx(int64_t _timestamp) {
+int32_t VideoReader::_ts_to_fidx(int64_t _timestamp) const {
     if (_timestamp == AV_NOPTS_VALUE) {
         return AV_NOIDX_VALUE;
     }
@@ -332,7 +349,7 @@ int32_t VideoReader::_ts_to_fidx(int64_t _timestamp) {
     return std::max((int32_t)frame_idx, (int32_t)0);
 }
 
-int64_t VideoReader::_fidx_to_ts(int32_t _frame_idx) {
+int64_t VideoReader::_fidx_to_ts(int32_t _frame_idx) const {
     if (_frame_idx == AV_NOIDX_VALUE) {
         return AV_NOPTS_VALUE;
     }
@@ -343,6 +360,7 @@ int64_t VideoReader::_fidx_to_ts(int32_t _frame_idx) {
     auto const & fps = video_streams_[sidx]->config().video.fps;
 
     auto inv_fps = AVRational{fps.den, fps.num};
+    snow::log::error("stream start_time: {}", stream->start_time);
     auto timestamp = av_rescale_q(_frame_idx, inv_fps, stream->time_base) + stream->start_time;
     return timestamp;
 }
@@ -406,12 +424,15 @@ bool VideoReader::seek(int32_t _frame_idx) {
                 snow::log::debug("flush decoder");
                 avcodec_flush_buffers(st->codec_ctx());
             }
-            int ret = av_seek_frame(handle, sidx, timestamp, AVSEEK_FLAG_BACKWARD);
+            int ret = av_seek_frame(handle, stream->index, timestamp, AVSEEK_FLAG_BACKWARD);
+            av_seek_frame(handle, stream->index, timestamp, AVSEEK_FLAG_BACKWARD);
             snow::log::debug(
-                "seek frame: {}, ts: {}, {}",
+                "seek frame: {}, ts: {}, {} (stt {}), ret {}",
                 _frame_idx,
                 AVTimeToTimestamp(timestamp, stream->time_base),
-                _ts_to_fidx(timestamp)
+                _ts_to_fidx(timestamp),
+                AVTimeToTimestamp(stream->start_time, stream->time_base),
+                ret
             );
         } else {
             snow::log::debug("near frame: {}, {}, {}", last_idx, _frame_idx, SEEKING_TRIGGER_HOP);
@@ -426,7 +447,6 @@ bool VideoReader::seek(int32_t _frame_idx) {
         // ! cannot use 'cur < _frame_idx' to judge, due to B-frame (need future frames to decode)
         // while (cur != _frame_idx) {
         while (cur != _frame_idx) {
-            snow::log::debug("  cur {}, target {}", cur, _frame_idx);
             // no frame got, eof
             bool got = this->_read_frame();
             // snow::log::debug("  read new frame: got? {}", got);
@@ -435,6 +455,11 @@ bool VideoReader::seek(int32_t _frame_idx) {
             }
             cur = this->_ts_to_fidx(frame_->pts);
             // snow::log::debug("  got frame at {}, {}", frame_->pts, cur);
+            Timestamp pts(0);
+            if (frame_) {
+                pts = AVTimeToTimestamp(frame_->pkt_dts, st->stream()->time_base);
+            }
+            snow::log::debug("  cur {} ({}), target {}", cur, pts,  _frame_idx);
         }
     }
 

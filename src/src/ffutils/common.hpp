@@ -67,7 +67,12 @@ namespace ffutils {
     int Decode(AVCodecContext *avctx, AVFrame  *frame, int *gotFrame, AVPacket *pkt);
     int Encode(AVCodecContext *avctx, AVPacket *pkt,   int *gotPacket, AVFrame *frame);
 
+#if LIBAVUTIL_VERSION_MAJOR >= 57
+    AVFrame * AllocateFrame(enum AVSampleFormat sampleFmt, AVChannelLayout const & channelLayout, int sampleRate, int nbSamples);
+#else
     AVFrame * AllocateFrame(enum AVSampleFormat sampleFmt, uint64_t channelLayout, int sampleRate, int nbSamples);
+#endif
+
     AVFrame * AllocateFrame(enum AVPixelFormat pixFmt, int width, int height);
 
     std::vector<float> Resample(const std::vector<float> &audio, int srcSampleRate, int dstSampleRate);
