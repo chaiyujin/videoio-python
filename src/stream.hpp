@@ -12,6 +12,17 @@ extern "C" {
 
 namespace vio {
 
+struct VideoConfig {
+    int32_t    width = 0;
+    int32_t    height = 0;
+    AVRational fps = {1, 0};
+    int32_t    rotation = 0;
+    std::string pix_fmt = "bgr24";
+    int32_t    bitrate = 0;
+    double     crf = 23.0;
+    int32_t    g = 12;  // gop_size, the number of pictures in a group of pictures, or 0 for intra_only (larger but quicker seeking).
+};
+
 /**
  * The class hold data and contexts for a stream.
  * */
@@ -177,10 +188,40 @@ public:
     auto image_size() const -> std::pair<int, int> const & { return image_size_; }
     auto image_size()       -> std::pair<int, int>       & { return image_size_; }
 
+    void reset() override {
+        StreamData::reset();
+        buffer_.clear();
+    }
+
 private:
     CircleBuffer buffer_;
     AVPacket pkt_;
     std::pair<int, int> image_size_;
+};
+
+
+class OutputStreamData : public StreamData {
+    int64_t next_pts_;
+    int32_t sample_count_;
+    int32_t frame_capacity_;
+public:
+    OutputStreamData()
+        : StreamData()
+        , next_pts_(0)
+        , sample_count_(0)
+        , frame_capacity_(0) {}
+    ~OutputStreamData() { reset(); }
+
+    void reset() override {
+        StreamData::reset();
+        next_pts_ = 0;
+        sample_count_ = 0;
+        frame_capacity_ = 0;
+    }
+
+    static std::unique_ptr<OutputStreamData> ConfigureVideoStream(
+        AVFormatContext *oc, enum AVCodecID codec_id, const VideoConfig &cfg
+    );
 };
 
 }

@@ -32,7 +32,9 @@ endif ()
 
 list(APPEND sources
     common.cpp
+    stream.cpp
     video_reader.cpp
+    video_writer.cpp
 )
 
 pybind11_add_module       (videoio ${headers} ${sources} pybind.cpp)
