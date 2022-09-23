@@ -1,6 +1,10 @@
+from typing import List
+
+import re
 import os
 import sys
 import pathlib
+import platform
 
 from pybind11 import get_cmake_dir
 from setuptools import setup, Extension
@@ -12,6 +16,47 @@ class CMakeExtension(Extension):
     def __init__(self, name):
         # don't invoke the original build_ext for this special extension
         super().__init__(name, sources=[])
+
+
+def find_best_ffmpeg_home():
+    ret: str = "/usr/local"
+    if "FFMPEG_HOME" in os.environ:
+        ret = os.environ["FFMPEG_HOME"]
+    else:
+        def _maybe_valid(dirpath: str):
+            if not os.path.isdir(dirpath):
+                return False
+            if not os.path.isdir(os.path.join(dirpath, "lib")):
+                return False
+            if not os.path.isdir(os.path.join(dirpath, "include")):
+                return False
+            return True
+
+        search_list: List[str] = []
+        sys_name = platform.system()
+        if sys_name == "Darwin":
+            brew_dirs: List[str] = []
+            for root, subdirs, _ in os.walk("/usr/local/Cellar"):
+                for subdir in subdirs:
+                    dirpath = os.path.join(root, subdir)
+                    if re.match(r"^/usr/local/Cellar/ffmpeg.*/\d\.\d\.\d[_\d]*$", dirpath):
+                        brew_dirs.append(dirpath)
+            brew_dirs = sorted(brew_dirs, key=lambda x: os.path.basename(x), reverse=True)
+            search_list.extend(brew_dirs)
+        elif sys_name == "Linux":
+            pass
+
+        search_list.extend([
+            os.path.expanduser("~/ffmpeg_build"),
+            os.path.expanduser("~/Software/ffmpeg_build"),
+            os.path.expanduser("~/software/ffmpeg_build"),
+        ])
+
+        for dirpath in search_list:
+            if _maybe_valid(dirpath):
+                ret = dirpath
+                break
+    return ret
 
 
 class build_ext(build_ext_orig):
@@ -26,7 +71,7 @@ class build_ext(build_ext_orig):
         if old_inplace:
             self.copy_extensions_to_source()
 
-    def build_cmake(self, ext):
+    def build_cmake(self, ext: CMakeExtension):
         cwd = pathlib.Path().absolute()
 
         dst_path = ext.name.replace('.', '/') 
@@ -45,12 +90,15 @@ class build_ext(build_ext_orig):
         print(">   build dir:", build_temp)
         print(">   lib dir:", extdir)
 
+        ffmpeg_home = find_best_ffmpeg_home()
+
         # example of cmake args
         config = 'Debug' if self.debug else 'Release'
         cmake_args = [
             '-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + str(extdir.absolute()),
             '-DCMAKE_BUILD_TYPE=' + config,
             '-DPYTHON_EXECUTABLE=' + sys.executable,
+            '-DFFmpeg_INSTALL_PATH=' + ffmpeg_home,
             '-Dpybind11_DIR=' + get_cmake_dir(),
         ]
 

@@ -6,34 +6,29 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
-
 # include cmake utils
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(cmake/Fetch.cmake)
 
-# ffmpeg from brew
-if (APPLE)
-    set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg/5.1.1")
-    # set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg@4/4.4.2_3")
-    # set(FFmpeg_INSTALL_PATH "~/Software/ffmpeg_build")
-endif (APPLE)
+# NOTE: Please set this by -DFFmpeg_INSTALL_PATH
+if (NOT FFmpeg_INSTALL_PATH)
+    # ffmpeg from brew
+    if (APPLE)
+        set(FFmpeg_INSTALL_PATH "/usr/local/Cellar/ffmpeg/5.1.1")
+    endif (APPLE)
+endif()
 find_package(FFmpeg REQUIRED)
 find_package(Threads REQUIRED)
 list(APPEND link_libraries FFmpeg::FFmpeg Threads::Threads)
+
+# spdlog
+GitHelper(spdlog https://github.com/gabime/spdlog.git v1.10.0 TRUE "" "spdlog")
 
 # pybind 11
 find_package(pybind11)
 if (NOT pybind11_FOUND)
     GitHelper(pybind11 https://github.com/pybind/pybind11.git v2.9.2 TRUE "" "")
 endif ()
-GitHelper(spdlog https://github.com/gabime/spdlog.git v1.10.0 TRUE "" "spdlog")
-
-# # sources
-# list(APPEND sources
-#     src/ffutils/common.cpp
-#     src/ffutils/video_reader.cpp
-#     # src/ffutils/video_writer.cpp
-# )
 
 list(APPEND sources
     common.cpp
