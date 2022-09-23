@@ -36,7 +36,7 @@ class build_ext(build_ext_orig):
 
         # these dirs will be created in build_py, so if you don't have
         # any python sources to bundle, the dirs will be missing
-        build_temp = pathlib.Path(os.path.join(self.build_temp, "ffutils"))
+        build_temp = pathlib.Path(os.path.join(self.build_temp, "videoio"))
         build_temp.mkdir(parents=True, exist_ok=True)
         extdir = pathlib.Path(os.path.dirname(self.get_ext_fullpath(ext.name)))
         extdir.mkdir(parents=True, exist_ok=True)
@@ -74,7 +74,7 @@ setup(
     version='0.0.1',
     packages=['ffutils'],
     ext_modules=[
-        CMakeExtension('ffutils.bind.ffutils'),
+        CMakeExtension('ffutils.bind.videoio'),
     ],
     cmdclass={
         'build_ext': build_ext,

@@ -5,13 +5,13 @@ from tqdm import trange, tqdm
 from timeit import timeit
 
 # test_vpath = os.path.expanduser("~/Movies/test_4k.webm")
-# test_vpath = os.path.expanduser("~/Movies/hello.flv")
+test_vpath = os.path.expanduser("~/Movies/hello.flv")
 # test_vpath = os.path.expanduser("~/Movies/ours-full.mp4")
 # test_vpath = os.path.expanduser("~/Movies/cc-by/indentfy the pay off your services are giving [C90sXVMN2rE].webm")
 # test_vpath = os.path.expanduser("~/Videos/30fps.mp4")
 # test_vpath = "../assets/050.mp4"
 # test_vpath = os.path.expanduser("~/Videos/iu/IU.mp4")
-test_vpath = "emma.mp4"
+# test_vpath = "emma.mp4"
 
 
 def test_cv2():
@@ -38,9 +38,10 @@ def test_cv2():
 
 
 def test_ffutils():
-    import ffutils
-    reader = ffutils.VideoReader(test_vpath)
-    print(reader.resolution, reader.width, reader.height, reader.n_frames, reader.fps)
+    import videoio
+    reader = videoio.VideoReader()
+    reader.open(test_vpath)
+    print(reader.image_size, reader.width, reader.height, reader.n_frames, reader.fps)
 
     # for i in range(100):
     #     print(reader.n_frames, reader.duration)
@@ -56,10 +57,10 @@ def test_ffutils():
     # reader.seek_msec(7000 / reader.fps * 1000)
     reader.seek_frame(880)
     reader.read()
-    print(reader.curr_iframe)
+    print(reader.curr_iframe, reader.curr_msec)
     reader.seek_frame(100)
     reader.read()
-    print(reader.curr_iframe)
+    print(reader.curr_iframe, reader.curr_msec)
     quit()
     for ifrm in range(reader.n_frames):
         with timeit("read"):
