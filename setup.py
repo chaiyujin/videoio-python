@@ -118,16 +118,17 @@ class build_ext(build_ext_orig):
 
 
 setup(
-    name='ffutils',
-    version='0.0.1',
-    packages=['ffutils'],
+    name='videoio',
+    version='0.0.2',
+    packages=['videoio'],
     ext_modules=[
-        CMakeExtension('ffutils.videoio'),
+        CMakeExtension('videoio.bind.videoio'),
     ],
     cmdclass={
         'build_ext': build_ext,
     },
     install_requires=[
-        'numpy'
+        'numpy',
+        'ffmpeg-python'
     ]
 )
