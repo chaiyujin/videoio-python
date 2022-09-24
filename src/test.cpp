@@ -33,11 +33,25 @@ int main(int argc, char ** argv) {
 
 
     {
+        spdlog::set_level(spdlog::level::debug);
         // allocate the output media context
         std::string filename_ = "test.mp4";
         VideoWriter writer;
-        writer.open(filename_, {.width=640, .height=480, .pix_fmt="bgr24", .fps={30, 1}, .crf=20.0});
+        VideoConfig cfg;
+        cfg.width = 640; cfg.height = 480;
+        cfg.pix_fmt = "bgr24";
+        cfg.fps = {30, 1};
+        cfg.crf = 20.0;
+        cfg.g = 0;
+
+        std::vector<uint8_t> data(640*480*3, 120);
+
+        writer.open(filename_, cfg);
         spdlog::info("opened: {}", writer.isOpened());
+        for (int i = 0; i < 100; ++i) {
+            printf("-----------------\n");
+            spdlog::info("write: {}", writer.write(data.data(), 640*3, 480));
+        }
         writer.close();
     }
 

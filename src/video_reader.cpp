@@ -66,10 +66,12 @@ bool VideoReader::open(std::string const & filename, std::pair<int32_t, int32_t>
     seek_to_pts_ = (fmtctx_->iformat->flags & AVFMT_SEEK_TO_PTS) != 0;
     dts_pts_delta_ = 0;
 
+#ifndef NDEBUG
     spdlog::debug(
         "start_time: {}, duration: {}, fps {}, tbr {}, {} frames. SEEK_TO_PTS={}",
         start_time_, duration_, fps_, tbr_, this->numFrames(), seek_to_pts_
     );
+#endif
     return true;
 }
 
@@ -120,7 +122,9 @@ bool VideoReader::_findMainStream(std::pair<int32_t, int32_t> const & target_res
                 if      (codec->capabilities | AV_CODEC_CAP_FRAME_THREADS) codec_ctx->thread_type = FF_THREAD_FRAME;
                 else if (codec->capabilities | AV_CODEC_CAP_SLICE_THREADS) codec_ctx->thread_type = FF_THREAD_SLICE;
                 else                                                       codec_ctx->thread_count = 1; // single thread
+#ifndef NDEBUG
                 spdlog::debug("codec ctx thread: {}", codec_ctx->thread_count);
+#endif
             }
 
             // Open decoder
@@ -219,7 +223,7 @@ int32_t VideoReader::_ts_to_fidx(int64_t av_time) const {
     }
 
     auto * stream = main_stream_data_->stream();
-    auto frame_idx = av_rescale_q(av_time - stream->start_time, stream->time_base, av_inv_q(stream->avg_frame_rate));
+    auto frame_idx = av_rescale_q(av_time - stream->start_time, stream->time_base, av_inv_q(stream->r_frame_rate));
     return std::max((int32_t)frame_idx, (int32_t)0);
 }
 
@@ -229,7 +233,7 @@ int64_t VideoReader::_fidx_to_ts(int32_t frame_idx) const {
     }
 
     auto * stream = main_stream_data_->stream();
-    auto timestamp = av_rescale_q(frame_idx, av_inv_q(stream->avg_frame_rate), stream->time_base) + stream->start_time;
+    auto timestamp = av_rescale_q(frame_idx, av_inv_q(stream->r_frame_rate), stream->time_base) + stream->start_time;
     return timestamp;
 }
 
@@ -251,7 +255,9 @@ bool VideoReader::seekByFrame(int32_t frame_idx) {
     for (size_t i = 0; i < st->buffer().size(); ++i) {
         auto * frm = st->buffer().offset_front(i);
         if (this->_ts_to_fidx(frm->pts) == frame_idx) {
+#ifndef NDEBUG
             spdlog::debug("find in buffer! {}, {}, {}", frm->pts, this->_ts_to_fidx(frm->pts), frame_idx);
+#endif
             in_buffer = true;
             frame_ = frm;
             break;
@@ -271,12 +277,14 @@ bool VideoReader::seekByFrame(int32_t frame_idx) {
             if (this->_seekToPTS()) {
                 avcodec_flush_buffers(st->codec_ctx());
                 av_seek_frame(fmtctx_.get(), stream->index, pts, AVSEEK_FLAG_BACKWARD);
+#ifndef NDEBUG
                 spdlog::debug(
                     "seek frame: {}, pts: {}, {}",
                     frame_idx,
                     AVTime2MS(pts, stream->time_base),
                     _ts_to_fidx(pts)
                 );
+#endif
             }
             else {
                 do {
@@ -284,12 +292,14 @@ bool VideoReader::seekByFrame(int32_t frame_idx) {
                     avcodec_flush_buffers(st->codec_ctx());
                     av_seek_frame(fmtctx_.get(), stream->index, dts, AVSEEK_FLAG_BACKWARD);
                     if (!this->_getFrame()) { return false; } // eof
+#ifndef NDEBUG
                     spdlog::debug("seek frame: {}, guess dts: {}, want pts {}, got pts {}",
                         frame_idx,
                         AVTime2MS(dts, stream->time_base),
                         AVTime2MS(pts, stream->time_base),
                         AVTime2MS(frame_->pts, stream->time_base)
                     );
+#endif
                     // Good dts
                     if (this->_ts_to_fidx(frame_->pts) <= frame_idx) {
                         break;
@@ -298,8 +308,11 @@ bool VideoReader::seekByFrame(int32_t frame_idx) {
                     dts_pts_delta_ += pts - frame_->pts;
                 } while (true);
             }
-        } else {
+        }
+        else {
+#ifndef NDEBUG
             spdlog::debug("near frame: {}, {}, {}", last_idx, frame_idx, SEEKING_TRIGGER_HOP);
+#endif
         }
 
         // read until the right frame
@@ -316,12 +329,12 @@ bool VideoReader::seekByFrame(int32_t frame_idx) {
                 return false;
             }
             cur = this->_ts_to_fidx(frame_->pts);
-            // snow::log::debug("  got frame at {}, {}", frame_->pts, cur);
+#ifndef NDEBUG
+            spdlog::debug("  got frame at {}, {}", AVTime2MS(frame_->pts, st->stream()->time_base), cur);
             Timestamp pts(0);
-            if (frame_) {
-                pts = AVTime2MS(frame_->pkt_dts, st->stream()->time_base);
-            }
+            if (frame_) { pts = AVTime2MS(frame_->pts, st->stream()->time_base); }
             spdlog::debug("  cur {} ({}), target {}", cur, pts,  frame_idx);
+#endif
         }
     }
 
@@ -361,7 +374,11 @@ int VideoReader::_readPacket(AVPacket * pkt) {
     int ret = av_read_frame(fmtctx_.get(), pkt);
     switch (ret) {
     case AVERROR(EAGAIN): break;
-    case AVERROR_EOF: spdlog::debug("  (_readPacket) file EOF."); break;
+    case AVERROR_EOF:
+#ifndef NDEBUG
+        spdlog::debug("  (_readPacket) file EOF.");
+#endif
+        break;
     default:
         if (pkt->stream_index != (int)main_stream_idx_) {
             ret = AVERROR(EAGAIN);  // HACK: abuse EAGAIN to ignore other streams.
@@ -398,9 +415,11 @@ bool VideoReader::_getFrame() {
             // set to new frame
             frame_ = new_frame;
         }
+#ifndef NDEBUG
         else {
             spdlog::debug("  (avcodec_receive_frame) {}.", av_err2str(ret));
         }
+#endif
         return ret;
     };
 
@@ -435,20 +454,26 @@ bool VideoReader::_getFrame() {
                                     // all output is read, the packet should be resent, and
                                     // the call will not fail with EAGAIN).
                     // NOTE: the packet is not unref in this case.
+#ifndef NDEBUG
                     spdlog::debug("  (avcodec_send_packet) EAGAIN.");
+#endif
                     return _decodeFrame() == 0;
                     break;
                 }
                 case AVERROR(EINVAL): { // codec not opened, it is an encoder, or requires flush
                     av_packet_unref(&pkt);
                     avcodec_send_packet(codec_ctx, nullptr);
+#ifndef NDEBUG
                     spdlog::debug("  (avcodec_send_packet) EINVAL.");
+#endif
                     return _decodeFrame() == 0;
                     break;
                 }
                 case AVERROR_EOF: { // codec is flushed.
                     av_packet_unref(&pkt);
+#ifndef NDEBUG
                     spdlog::debug("  (avcodec_send_packet) EOF. Codec is flushed!");
+#endif
                     return _decodeFrame() == 0;
                     break;
                 }

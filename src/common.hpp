@@ -20,19 +20,19 @@ extern "C" {
 #define AV_TIME_BASE_Q AVRational {1, AV_TIME_BASE}
 
 inline char *av_ts2str(int64_t ts) {
-    char str[AV_TS_MAX_STRING_SIZE];
+    static char str[AV_TS_MAX_STRING_SIZE];
     memset(str, 0, sizeof(str));
     return av_ts_make_string(str, ts);
 }
 
 inline char* av_err2str(int errnum) {
-    char str[AV_ERROR_MAX_STRING_SIZE];
+    static char str[AV_ERROR_MAX_STRING_SIZE];
     memset(str, 0, sizeof(str));
     return av_make_error_string(str, AV_ERROR_MAX_STRING_SIZE, errnum);
 }
 
 inline char *av_ts2timestr(int64_t ts, AVRational tb) {
-    char str[AV_TS_MAX_STRING_SIZE];
+    static char str[AV_TS_MAX_STRING_SIZE];
     memset(str, 0, sizeof(str));
     return av_ts_make_time_string(str, ts, &tb);
 }

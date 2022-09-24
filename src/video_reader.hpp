@@ -21,7 +21,7 @@ public:
         , dts_pts_delta_(0)
     {}
     ~VideoReader() {
-        this->_cleanup();
+        this->close();
     }
 
     bool open(std::string const & filename, std::pair<int32_t, int32_t> const & target_resolution = {0, 0});

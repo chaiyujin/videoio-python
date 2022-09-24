@@ -13,18 +13,22 @@ public:
         , video_stream_data_(nullptr)
     {}
     ~VideoWriter() {
-        this->_cleanup();
+        this->close();
     }
 
     auto open(std::string const & filename, VideoConfig cfg) -> bool;
     void close();
     auto isOpened() const -> bool { return video_stream_data_ != nullptr; }
 
+    auto write(const uint8_t * data, uint32_t linesize, uint32_t height) -> bool {
+        return _writeVideoFrame(data, linesize, height);
+    }
+
 private:
     std::unique_ptr<AVFormatContext, void(*)(AVFormatContext *)> fmtctx_;
     std::unique_ptr<OutputStreamData> video_stream_data_;
 
-    auto _writeVideoFrame(const uint8_t * data, int32_t linesize, int32_t height) -> bool;
+    auto _writeVideoFrame(const uint8_t * data, uint32_t linesize, uint32_t height) -> bool;
 
     void _cleanup() {
         video_stream_data_.reset();

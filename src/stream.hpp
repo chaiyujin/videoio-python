@@ -212,6 +212,9 @@ public:
         , frame_capacity_(0) {}
     ~OutputStreamData() { reset(); }
 
+    auto next_pts() const -> int64_t { return next_pts_; }
+    void set_next_pts(int64_t pts) { next_pts_ = pts; }
+
     void reset() override {
         StreamData::reset();
         next_pts_ = 0;

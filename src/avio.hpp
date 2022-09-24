@@ -43,11 +43,10 @@ public:
 
     auto probeInputFormat() -> const AVInputFormat * {
         int probe_size = 1 * 1024 + AVPROBE_PADDING_SIZE;
-        AVProbeData probe_data = {
-            .filename = "",
-            .buf = (uint8_t*)av_malloc(probe_size),
-            .buf_size = probe_size - AVPROBE_PADDING_SIZE
-        };
+        AVProbeData probe_data = {};
+        probe_data.filename = "";
+        probe_data.buf = (uint8_t*)av_malloc(probe_size);
+        probe_data.buf_size = probe_size - AVPROBE_PADDING_SIZE;
         memset(probe_data.buf, 0, probe_size);
         int len = this->read(probe_data.buf, probe_size - AVPROBE_PADDING_SIZE);
         probe_data.buf_size = len;
