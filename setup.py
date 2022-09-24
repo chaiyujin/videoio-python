@@ -122,7 +122,7 @@ setup(
     version='0.0.1',
     packages=['ffutils'],
     ext_modules=[
-        CMakeExtension('ffutils.bind.videoio'),
+        CMakeExtension('ffutils.videoio'),
     ],
     cmdclass={
         'build_ext': build_ext,

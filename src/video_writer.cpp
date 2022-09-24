@@ -1,5 +1,6 @@
 extern "C" {
 #include <libavutil/pixdesc.h>
+#include <libavutil/log.h>
 }
 #include "video_writer.hpp"
 
@@ -114,6 +115,7 @@ bool VideoWriter::open(std::string const & filename, VideoConfig cfg) {
         return false;
     }
 
+    this->video_config_ = cfg;
     return true;
 }
 

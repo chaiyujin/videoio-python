@@ -1,6 +1,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#include <map>
 #include "video_reader.hpp"
 #include "video_writer.hpp"
 
@@ -60,17 +61,66 @@ bool _Write(vio::VideoWriter & self, NpImage const & image) {
     uint8_t const * data = nullptr;
     uint32_t linesize = 0;
     uint32_t height = 0;
-    if ((image.size() != 0) && (image.ndim() == 3)) {
+    auto w = self.video_config().width;
+    auto h = self.video_config().height;
+    auto const & pix_fmt = self.video_config().pix_fmt;
+    int32_t n = 0;
+    if      (pix_fmt == "rgb24" || pix_fmt == "bgr24") { n = 3; }
+    else if (pix_fmt == "rgba"  || pix_fmt == "bgra" ) { n = 4; }
+    else {
+        spdlog::error("[pybind][VideoWriter] VideoWriter use an unknown pix_fmt: '{}'!", pix_fmt);
+        return false;
+    }
+    // Only write in valid case.
+    if (
+        image.size() != 0 && image.ndim() == 3 &&
+        h == image.shape(0) &&
+        w == image.shape(1) &&
+        n == image.shape(2)
+    ) {
         data = image.data();        
         height = image.shape(0);
         linesize = image.strides(0);
-        spdlog::warn("linesize: {}, height: {}, width: {}", linesize, height, image.shape(1));
+        // spdlog::warn("linesize: {}, height: {}, width: {}", linesize, height, image.shape(1));
+        self.write(data, linesize, height);
+        return true;
     }
-    return self.write(data, linesize, height);
+    else {
+        std::string shape;
+        for (int i = 0; i < image.ndim(); ++i) {
+            if (i > 0) shape += ",";
+            shape += std::to_string(image.shape(i));
+        }
+        spdlog::warn("[pybind][VideoWriter] Given image has invalid shape ({}), should be ({},{},{})!", shape, h, w, n);
+        return false;
+    }
 }
 
+static std::map<std::string, int> g_str2level = {
+    {"quiet",   AV_LOG_QUIET},
+    {"panic",   AV_LOG_PANIC},
+    {"fatal",   AV_LOG_FATAL},
+    {"error",   AV_LOG_ERROR},
+    {"warn",    AV_LOG_WARNING}, {"warning", AV_LOG_WARNING},
+    {"info",    AV_LOG_INFO},
+    {"verbose", AV_LOG_VERBOSE},
+    {"debug",   AV_LOG_DEBUG},
+    {"trace",   AV_LOG_TRACE},
+};
+
+void SetLogLevel(std::string level) {
+    auto it = g_str2level.find(level);
+    if (it != g_str2level.end()) {
+        av_log_set_level(it->second);
+    }
+}
 
 PYBIND11_MODULE(videoio, m) {
+    // Default log level as error.
+    av_log_set_level(AV_LOG_ERROR);
+
+    m.def("set_log_level", &SetLogLevel);
+
     py::class_<vio::VideoReader>(m, "VideoReader")
         .def(py::init<>())
         .def_property_readonly("n_frames", &vio::VideoReader::numFrames)
@@ -88,6 +138,8 @@ PYBIND11_MODULE(videoio, m) {
         .def("release", &vio::VideoReader::close)
         .def("close", &vio::VideoReader::close)
         .def("read", &_Read, py::return_value_policy::move)
+        // static
+        .def_static("set_log_level", &SetLogLevel)
     ;
 
     py::class_<vio::VideoWriter>(m, "VideoWriter")
@@ -96,5 +148,7 @@ PYBIND11_MODULE(videoio, m) {
         .def("release", &vio::VideoWriter::close)
         .def("close", &vio::VideoWriter::close)
         .def("write", &_Write)
+        // static
+        .def_static("set_log_level", &SetLogLevel)
     ;
 }

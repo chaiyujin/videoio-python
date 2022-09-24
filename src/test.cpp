@@ -48,9 +48,8 @@ int main(int argc, char ** argv) {
 
         writer.open(filename_, cfg);
         spdlog::info("opened: {}", writer.isOpened());
-        for (int i = 0; i < 100; ++i) {
-            printf("-----------------\n");
-            spdlog::info("write: {}", writer.write(data.data(), 640*3, 480));
+        for (int i = 0; i < 10; ++i) {
+            writer.write(data.data(), 640*3, 480);
         }
         writer.close();
     }

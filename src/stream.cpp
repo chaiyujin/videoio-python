@@ -52,11 +52,13 @@ std::unique_ptr<OutputStreamData> OutputStreamData::ConfigureVideoStream(
         }
         ost->set_codec_ctx(codec_ctx);
 
-        spdlog::info("[vio::VideoWriter]: codec {} ({}) for {}",
+#ifndef NDEBUG
+        spdlog::debug("[vio::VideoWriter]: codec {} ({}) for {}",
             codec->name,
             codec->long_name,
             avcodec_get_name(codec_id)
         );
+#endif
 
         // Configure the codec context
         {
