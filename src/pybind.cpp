@@ -9,6 +9,7 @@ namespace py = pybind11;
 using namespace pybind11::literals;
 
 using NpImage = py::array_t<uint8_t, py::array::c_style>;
+using NpBytes = py::array_t<uint8_t, py::array::c_style>;
 
 std::pair<bool, NpImage> _Read(vio::VideoReader & reader) {
     static size_t shape_empty[3] = { 0, 0, 0 };
@@ -34,6 +35,22 @@ std::pair<bool, NpImage> _Read(vio::VideoReader & reader) {
         memcpy(ret.mutable_data() + (w * chs * y), frame->data[0] + s * y, w * chs);
     }
     return {true, std::move(ret)};
+}
+
+bool _OpenReaderWithFile(
+    vio::VideoReader & reader,
+    std::string filename,
+    std::pair<int, int> image_size
+) {
+    return reader.open(filename, image_size);
+}
+
+bool _OpenReaderWithBytes(
+    vio::VideoReader & reader,
+    NpBytes const & bytes,
+    std::pair<int, int> image_size
+) {
+    return reader.open(bytes.data(), bytes.size(), image_size);
 }
 
 bool _OpenWriter(
@@ -132,7 +149,8 @@ PYBIND11_MODULE(videoio, m) {
         .def_property_readonly("height", [](vio::VideoReader const & r) { return r.imageSize().second; })
         // We return tbr rather than fps here.
         .def_property_readonly("fps", [](vio::VideoReader const & r) { auto tbr = r.tbr(); return (double)tbr.num / (double)tbr.den; })
-        .def("open", &vio::VideoReader::open, "filename"_a, "image_size"_a=std::pair<int, int>(0, 0))
+        .def("open", &_OpenReaderWithFile, "filename"_a, "image_size"_a=std::pair<int, int>(0, 0))
+        .def("open_bytes", &_OpenReaderWithBytes, "bytes"_a, "image_size"_a=std::pair<int, int>(0, 0))
         .def("seek_frame", &vio::VideoReader::seekByFrame)
         .def("seek_msec", &vio::VideoReader::seekByTime)
         .def("release", &vio::VideoReader::close)

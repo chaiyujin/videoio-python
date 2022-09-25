@@ -22,25 +22,37 @@ bool VideoReader::open(std::string const & filename, std::pair<int32_t, int32_t>
     // TODO: handle file io error?
     this->ioctx_ = std::unique_ptr<AVIOBase>(new AVFileIOContext(filename));
 
-    // 2. Create a reading format context.
+    return this->_open(target_resolution);
+}
+
+
+bool VideoReader::open(const uint8_t * data, size_t size, std::pair<int32_t, int32_t> const & target_resolution) {
+    this->close();  // make sure everything is cleaned up.
+
+    // 1. Create a file IO.
+    // TODO: handle file io error?
+    this->ioctx_ = std::unique_ptr<AVIOBase>(new AVMemoryIOContext(data, size));
+
+    return this->_open(target_resolution);
+}
+
+bool VideoReader::_open(std::pair<int32_t, int32_t> const & target_resolution) {
+    // Create a reading format context.
     this->fmtctx_ = std::unique_ptr<AVFormatContext, void(*)(AVFormatContext *)>(
         avformat_alloc_context(), [](AVFormatContext * p) { avformat_free_context(p); }
     );
     auto * fmt = this->fmtctx_.get();
     this->ioctx_->associateFormatContext(fmt);
 
-    // 3. Open
+    // Open
     int ret = avformat_open_input(&fmt, NULL, NULL, NULL);
     if (ret < 0) {
-        spdlog::error(
-            "[vio::VideoReader]: Cannot open input file '{}': {}.",
-            filename, av_err2str(ret)
-        );
+        spdlog::error("[vio::VideoReader]: Cannot open input: {}.", av_err2str(ret));
         this->_cleanup();
         return false;
     }
 
-    // 4. Find stream information
+    // Find stream information
     ret = avformat_find_stream_info(fmt, NULL);
     if (ret < 0) {
         spdlog::error(
@@ -53,7 +65,7 @@ bool VideoReader::open(std::string const & filename, std::pair<int32_t, int32_t>
 
     // av_dump_format(fmt, 0, filename.c_str(), 0);
 
-    // 5. Try to initialize some properties
+    // Try to initialize some properties
     if (fmt->start_time != AV_NOPTS_VALUE) { this->start_time_ = AVTime2MS(fmt->start_time); }
     if (fmt->duration   != AV_NOPTS_VALUE) { this->duration_   = AVTime2MS(fmt->duration  ); }
 

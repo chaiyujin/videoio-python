@@ -138,157 +138,74 @@ private:
     FILE * input_file_;
 };
 
+class AVMemoryIOContext : public AVIOBase {
+public:
+    AVMemoryIOContext(const uint8_t * data, size_t size, size_t buffer_size = DEFAULT_AVIO_BUFFER_SZ)
+        : AVIOBase(buffer_size)
+        , memory_(data)
+        , memory_size_(size)
+        , offset_(0)
+    {
+        ctx_ = avio_alloc_context(
+            AVIOBase::buffer_,
+            AVIOBase::buffer_size_,
+            0,
+            this,
+            &AVMemoryIOContext::ReadMemory,
+            nullptr, // no write function
+            &AVMemoryIOContext::SeekMemory
+        );
+    }
+    ~AVMemoryIOContext() {}
 
-// class VideoIOContext {
-// public:
-//     explicit VideoIOContext(const std::string & fname)
-//         : work_buf_size_(VIO_BUFFER_SZ)
-//         , work_buf_((uint8_t*)av_malloc(work_buf_size_))
-//         , input_file_(nullptr)
-//         , input_buf_(nullptr)
-//         , input_buf_size_(0)
-//     {
-//         input_file_ = fopen(fname.c_str(), "rb");
-//         if (input_file_ == nullptr) {
-//             LOG(ERROR) << "Error opening video file " << fname;
-//         }
-//         ctx_ = avio_alloc_context(
-//             static_cast<unsigned char*>(work_buf_.get()),
-//             work_buf_size_,
-//             0,
-//             this,
-//             &VideoIOContext::readFile,
-//             nullptr, // no write function
-//             &VideoIOContext::seekFile);
-//     }
+    int read(unsigned char* buf, int buf_size) {
+        return ReadMemory(this, buf, buf_size);
+    }
+    
+    int64_t seek(int64_t offset, int whence) {
+        return SeekMemory(this, offset, whence);
+    }
 
-//     explicit VideoIOContext(const char* buffer, int size)
-//         : work_buf_size_(VIO_BUFFER_SZ),
-//             work_buf_((uint8_t*)av_malloc(work_buf_size_)),
-//             input_file_(nullptr),
-//             input_buf_(buffer),
-//             input_buf_size_(size) {
-//         ctx_ = avio_alloc_context(
-//             static_cast<unsigned char*>(work_buf_.get()),
-//             work_buf_size_,
-//             0,
-//             this,
-//             &VideoIOContext::readMemory,
-//             nullptr, // no write function
-//             &VideoIOContext::seekMemory);
-//     }
-    
-//     ~VideoIOContext() {
-//         av_free(ctx_);
-//         if (input_file_) {
-//             fclose(input_file_);
-//         }
-//     }
-    
-//     int read(unsigned char* buf, int buf_size) {
-//         if (input_buf_) {
-//             return readMemory(this, buf, buf_size);
-//         } else if (input_file_) {
-//             return readFile(this, buf, buf_size);
-//         } else {
-//             return -1;
-//         }
-//     }
-    
-//     int64_t seek(int64_t offset, int whence) {
-//         if (input_buf_) {
-//             return seekMemory(this, offset, whence);
-//         } else if (input_file_) {
-//             return seekFile(this, offset, whence);
-//         } else {
-//             return -1;
-//         }
-//     }
-    
-//     static int readFile(void* opaque, unsigned char* buf, int buf_size) {
-//         VideoIOContext* h = static_cast<VideoIOContext*>(opaque);
-//         if (feof(h->input_file_)) {
-//             return AVERROR_EOF;
-//         }
-//         size_t ret = fread(buf, 1, buf_size, h->input_file_);
-//         if (ret < buf_size) {
-//             if (ferror(h->input_file_)) {
-//                 return -1;
-//             }
-//         }
-//         return ret;
-//     }
-    
-//     static int64_t seekFile(void* opaque, int64_t offset, int whence) {
-//         VideoIOContext* h = static_cast<VideoIOContext*>(opaque);
-//         switch (whence) {
-//         case SEEK_CUR: // from current position
-//         case SEEK_END: // from eof
-//         case SEEK_SET: // from beginning of file
-//             return fseek(h->input_file_, static_cast<long>(offset), whence);
-//             break;
-//         case AVSEEK_SIZE:
-//             int64_t cur = ftell(h->input_file_);
-//             fseek(h->input_file_, 0L, SEEK_END);
-//             int64_t size = ftell(h->input_file_);
-//             fseek(h->input_file_, cur, SEEK_SET);
-//             return size;
-//         }
-    
-//         return -1;
-//     }
-    
-//     static int readMemory(void* opaque, unsigned char* buf, int buf_size) {
-//         VideoIOContext* h = static_cast<VideoIOContext*>(opaque);
-//         if (buf_size < 0) {
-//         return -1;
-//         }
-    
-//         int reminder = h->input_buf_size_ - h->offset_;
-//         int r = buf_size < reminder ? buf_size : reminder;
-//         if (r < 0) {
-//         return AVERROR_EOF;
-//         }
-    
-//         memcpy(buf, h->input_buf_ + h->offset_, r);
-//         h->offset_ += r;
-//         return r;
-//     }
-    
-//     static int64_t seekMemory(void* opaque, int64_t offset, int whence) {
-//         VideoIOContext* h = static_cast<VideoIOContext*>(opaque);
-//         switch (whence) {
-//         case SEEK_CUR: // from current position
-//             h->offset_ += offset;
-//             break;
-//         case SEEK_END: // from eof
-//             h->offset_ = h->input_buf_size_ + offset;
-//             break;
-//         case SEEK_SET: // from beginning of file
-//             h->offset_ = offset;
-//             break;
-//         case AVSEEK_SIZE:
-//             return h->input_buf_size_;
-//         }
-//         return h->offset_;
-//     }
-    
-//     AVIOContext* get_avio() {
-//         return ctx_;
-//     }
+    static int ReadMemory(void* opaque, uint8_t * buf, int buf_size) {
+        if (buf_size < 0) {
+            return -1;
+        }
 
-// private:
-//     int work_buf_size_;
-//     DecodedFrame::AvDataPtr work_buf_;
-//     // for file mode
-//     FILE* input_file_;
+        auto * h = static_cast<AVMemoryIOContext *>(opaque);
+        int reminder = h->memory_size_ - h->offset_;
+        int r = (buf_size < reminder) ? buf_size : reminder;
+        if (r < 0) {
+            return AVERROR_EOF;
+        }
     
-//     // for memory mode
-//     const char* input_buf_;
-//     int input_buf_size_;
-//     int offset_ = 0;
-    
-//     AVIOContext* ctx_;
-// };
- 
+        memcpy(buf, h->memory_ + h->offset_, r);
+        h->offset_ += r;
+        return r;
+    }
+
+    static int64_t SeekMemory(void* opaque, int64_t offset, int whence) {
+        auto * h = static_cast<AVMemoryIOContext *>(opaque);
+        switch (whence) {
+        case SEEK_CUR: // from current position
+            h->offset_ += offset;
+            break;
+        case SEEK_END: // from eof
+            h->offset_ = h->memory_size_ + offset;
+            break;
+        case SEEK_SET: // from beginning of file
+            h->offset_ = offset;
+            break;
+        case AVSEEK_SIZE:
+            return h->memory_size_;
+        }
+        return h->offset_;
+    }
+
+private:
+    // for memory mode
+    const uint8_t * memory_;
+    int memory_size_;
+    int offset_;
+};
+
 }
