@@ -93,10 +93,10 @@ bool VideoReader::_findMainStream(std::pair<int32_t, int32_t> const & target_res
 
     // Find the first video stream
     for (size_t i = 0; i < fmt->nb_streams; i++) {
-        AVStream *       stream     = fmt->streams[i];
-        auto             codec_id   = stream->codecpar->codec_id;
-        std::string      codec_name = avcodec_get_name(codec_id);
-        AVCodec const *  codec      = avcodec_find_decoder(codec_id);
+        auto * stream     = fmt->streams[i];
+        auto   codec_id   = stream->codecpar->codec_id;
+        auto   codec_name = avcodec_get_name(codec_id);
+        auto * codec      = avcodec_find_decoder(codec_id);
 
         auto sd = std::make_unique<InputStreamData>();
         sd->set_stream(stream);
