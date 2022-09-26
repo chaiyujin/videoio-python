@@ -65,24 +65,28 @@ reader.release()
 ```
 
 # Dependency
-- PyBind11: `pip install pybind11`.
-- FFmpeg.
-    - MacOS: `brew install ffmpeg`. The installed ffmpeg can be found in the directory `/usr/local/Cellar/ffmpeg/`.
+## Python Packages
+You can install following packages with `pip` or `conda`.
+- numpy
+- pybind11
 
-    - Ubuntu: You can use `apt` to install libraries:
-        ```
-        sudo apt install ffmpeg \
-            libavutil-dev libavcodec-dev \
-            libavformat-dev libavdevice-dev \
-            libavfilter-dev libswscale-dev \
-            libswresample-dev libpostproc-dev;
-        ```
-        Instead, if you want lastest FFmpeg version, you may compile from source code by running the provided script:
-        ```
-        FFMPEG_VERSION=5.1.1 FFMPEG_HOME=~/ffmpeg_build bash scripts/install_ffmpeg_ubuntu.sh
-        ```
+## FFmpeg
+- MacOS: `brew install ffmpeg`. The installed ffmpeg can be found in the directory `/usr/local/Cellar/ffmpeg/`.
 
-    - [ ] Windows:
+- Ubuntu: You can use `apt` to install libraries:
+    ```
+    sudo apt install ffmpeg \
+        libavutil-dev libavcodec-dev \
+        libavformat-dev libavdevice-dev \
+        libavfilter-dev libswscale-dev \
+        libswresample-dev libpostproc-dev;
+    ```
+    Instead, if you want lastest FFmpeg version, you may compile from source code by running the provided script:
+    ```
+    FFMPEG_VERSION=5.1.1 FFMPEG_HOME=~/ffmpeg_build bash scripts/install_ffmpeg_ubuntu.sh
+    ```
+
+- [ ] Windows:
 
 # Install
 If you prepare PyBind11 and FFmpeg as described in *Section Dependency*, you can simply run:
