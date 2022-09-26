@@ -13,6 +13,16 @@ extern "C" {
 #include <libavutil/timestamp.h>
 }
 
+// Some function's return pointers become 'const *' since 59 (ffmpeg 5.0).
+#ifndef ff_const59
+#if (LIBAVFORMAT_VERSION_MAJOR < 59)
+#define ff_const59
+#else
+#define ff_const59 const
+#endif
+#endif
+
+
 #undef  av_ts2str
 #undef  av_err2str
 #undef  av_ts2timestr

@@ -30,23 +30,23 @@ class StreamData {
 
 protected:
     // ffmpeg related pointers, RAII
-    std::unique_ptr<AVStream,       void(*)(AVStream *)>       stream_;
-    std::unique_ptr<AVCodec const,  void(*)(AVCodec const *)>  codec_;
-    std::unique_ptr<AVCodecContext, void(*)(AVCodecContext *)> codec_ctx_;
-    std::unique_ptr<AVFrame,        void(*)(AVFrame *)>        frame_;
-    std::unique_ptr<AVFrame,        void(*)(AVFrame *)>        tmp_frame_; // for conversion
-    std::unique_ptr<SwsContext,     void(*)(SwsContext *)>     sws_ctx_;   // video conversion context
-    std::unique_ptr<SwrContext,     void(*)(SwrContext *)>     swr_ctx_;   // audio conversion context
+    std::unique_ptr<AVStream,           void(*)(AVStream *)>           stream_;
+    std::unique_ptr<AVCodec ff_const59, void(*)(AVCodec ff_const59 *)> codec_;
+    std::unique_ptr<AVCodecContext,     void(*)(AVCodecContext *)>     codec_ctx_;
+    std::unique_ptr<AVFrame,            void(*)(AVFrame *)>            frame_;
+    std::unique_ptr<AVFrame,            void(*)(AVFrame *)>            tmp_frame_; // for conversion
+    std::unique_ptr<SwsContext,         void(*)(SwsContext *)>         sws_ctx_;   // video conversion context
+    std::unique_ptr<SwrContext,         void(*)(SwrContext *)>         swr_ctx_;   // audio conversion context
 
 public:
     StreamData()
-        : stream_   (nullptr, [](AVStream       * ) {})
-        , codec_    (nullptr, [](AVCodec const  * ) {})
-        , codec_ctx_(nullptr, [](AVCodecContext *x) { if (x) avcodec_free_context(&x); })
-        , frame_    (nullptr, [](AVFrame        *x) { if (x) av_frame_free(&x);        })
-        , tmp_frame_(nullptr, [](AVFrame        *x) { if (x) av_frame_free(&x);        })
-        , sws_ctx_  (nullptr, [](SwsContext     *x) { if (x) sws_freeContext(x);       })
-        , swr_ctx_  (nullptr, [](SwrContext     *x) { if (x) swr_free(&x);             })
+        : stream_   (nullptr, [](AVStream           * ) {})
+        , codec_    (nullptr, [](AVCodec ff_const59 * ) {})
+        , codec_ctx_(nullptr, [](AVCodecContext     *x) { if (x) { avcodec_close(x); avcodec_free_context(&x); } })
+        , frame_    (nullptr, [](AVFrame            *x) { if (x) { av_frame_free(&x);        } })
+        , tmp_frame_(nullptr, [](AVFrame            *x) { if (x) { av_frame_free(&x);        } })
+        , sws_ctx_  (nullptr, [](SwsContext         *x) { if (x) { sws_freeContext(x);       } })
+        , swr_ctx_  (nullptr, [](SwrContext         *x) { if (x) { swr_free(&x);             } })
     {
         set_frame(av_frame_alloc());
     }
@@ -62,16 +62,16 @@ public:
         codec_    .reset();
     }
 
-    AVStream          * stream()       { return stream_.get();    }
-    AVCodec const     * codec()        { return codec_.get();     }
-    AVCodecContext    * codec_ctx()    { return codec_ctx_.get(); }
-    AVFrame           * frame()        { return frame_.get();     }
-    AVFrame           * tmp_frame()    { return tmp_frame_.get(); }
-    SwsContext        * sws_ctx()      { return sws_ctx_.get();   }
-    SwrContext        * swr_ctx()      { return swr_ctx_.get();   }
+    AVStream           * stream()       { return stream_.get();    }
+    AVCodec ff_const59 * codec()        { return codec_.get();     }
+    AVCodecContext     * codec_ctx()    { return codec_ctx_.get(); }
+    AVFrame            * frame()        { return frame_.get();     }
+    AVFrame            * tmp_frame()    { return tmp_frame_.get(); }
+    SwsContext         * sws_ctx()      { return sws_ctx_.get();   }
+    SwrContext         * swr_ctx()      { return swr_ctx_.get();   }
 
     void set_stream(AVStream *ptr)          { stream_   .reset(ptr);   }
-    void set_codec(AVCodec const *ptr)      { codec_    .reset(ptr);   }
+    void set_codec(AVCodec ff_const59 *ptr) { codec_    .reset(ptr);   }
     void set_codec_ctx(AVCodecContext *ptr) { codec_ctx_.reset(ptr);   }
     void set_frame(AVFrame *frame)          { frame_    .reset(frame); }
     void set_tmp_frame(AVFrame *frame)      { tmp_frame_.reset(frame); }

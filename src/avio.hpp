@@ -5,6 +5,7 @@ extern "C" {
 #include <libavformat/avio.h>
 #include <libavformat/avformat.h>
 }
+#include "common.hpp"
 
 #define DEFAULT_AVIO_BUFFER_SZ 32768
 
@@ -41,7 +42,7 @@ public:
         }
     }
 
-    auto probeInputFormat() -> const AVInputFormat * {
+    auto probeInputFormat() -> ff_const59 AVInputFormat * {
         int probe_size = 1 * 1024 + AVPROBE_PADDING_SIZE;
         AVProbeData probe_data = {};
         probe_data.filename = "";
@@ -51,7 +52,7 @@ public:
         int len = this->read(probe_data.buf, probe_size - AVPROBE_PADDING_SIZE);
         probe_data.buf_size = len;
 
-        const AVInputFormat * inp_fmt = av_probe_input_format(&probe_data, 1);
+        ff_const59 AVInputFormat * inp_fmt = av_probe_input_format(&probe_data, 1);
 
         av_free(probe_data.buf);
 
