@@ -1,7 +1,10 @@
-# FFmpeg Python Utils
+# videio-python
+It's a simple videoio for python implemented by FFmpeg.
+
 ## Highlights:
-- VideoReader: support frame-accurate seeking.
-- VideoWriter.
+- The api is almost the same as `cv2`, but the `VideoWriter` is much easier to create.
+- `VideoReader`: support **frame-accurate seeking**.
+- `VideoWriter`: support high-quality compressing (low `crf` for `libx264` encoded `.mp4`); audio merging.
 
 ## Warning
 This repo is still under development. It's only tested on `.mp4` with `libx264` codec so far.
@@ -65,18 +68,24 @@ reader.release()
 - PyBind11: `pip install pybind11`.
 - FFmpeg.
     - MacOS: `brew install ffmpeg`. The installed ffmpeg can be found in the directory `/usr/local/Cellar/ffmpeg/`.
+
     - Ubuntu: You can use `apt` to install libraries:
         ```
-        sudo apt install ffmpeg libavutil-dev libavcodec-dev libavformat-dev libavdevice-dev libavfilter-dev libswscale-dev libswresample-dev libpostproc-dev
+        sudo apt install ffmpeg \
+            libavutil-dev libavcodec-dev \
+            libavformat-dev libavdevice-dev \
+            libavfilter-dev libswscale-dev \
+            libswresample-dev libpostproc-dev;
         ```
         Instead, if you want lastest FFmpeg version, you may compile from source code by running the provided script:
         ```
         FFMPEG_VERSION=5.1.1 FFMPEG_HOME=~/ffmpeg_build bash scripts/install_ffmpeg_ubuntu.sh
         ```
+
     - [ ] Windows:
 
 # Install
-If you prepare FFmpeg as described in *Section Dependency*, you can simply run:
+If you prepare PyBind11 and FFmpeg as described in *Section Dependency*, you can simply run:
 ```
 pip install .
 ```
