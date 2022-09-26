@@ -6,7 +6,6 @@ import sys
 import pathlib
 import platform
 
-from pybind11 import get_cmake_dir
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext as build_ext_orig
 
@@ -72,6 +71,8 @@ class build_ext(build_ext_orig):
             self.copy_extensions_to_source()
 
     def build_cmake(self, ext: CMakeExtension):
+        from pybind11 import get_cmake_dir
+
         cwd = pathlib.Path().absolute()
 
         dst_path = ext.name.replace('.', '/') 
