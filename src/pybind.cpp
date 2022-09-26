@@ -11,7 +11,15 @@ using namespace pybind11::literals;
 using NpImage = py::array_t<uint8_t, py::array::c_style>;
 using NpBytes = py::array_t<uint8_t, py::array::c_style>;
 
-std::pair<bool, NpImage> _Read(vio::VideoReader & reader) {
+auto _CheckInputPixFmt(std::string pix_fmt) -> std::string {
+    if      (pix_fmt == "rgb24" || pix_fmt == "bgr24") { return pix_fmt; }
+    else if (pix_fmt == "rgba"  || pix_fmt == "bgra" ) { return pix_fmt; }
+    else if (pix_fmt == "rgb"   || pix_fmt == "bgr"  ) { return pix_fmt + "24"; }
+    else { spdlog::error("[videoio,pybind] Input pix_fmt is unknown: '{}'!", pix_fmt); }
+    return "";
+}
+
+auto _Read(vio::VideoReader & reader) -> std::pair<bool, NpImage> {
     static size_t shape_empty[3] = { 0, 0, 0 };
     static NpImage empty(shape_empty);
 
@@ -40,17 +48,23 @@ std::pair<bool, NpImage> _Read(vio::VideoReader & reader) {
 bool _OpenReaderWithFile(
     vio::VideoReader & reader,
     std::string filename,
+    std::string pix_fmt,
     std::pair<int, int> image_size
 ) {
-    return reader.open(filename, image_size);
+    pix_fmt = _CheckInputPixFmt(pix_fmt);
+    if (pix_fmt.length() == 0) return false;
+    return reader.open(filename, pix_fmt, image_size);
 }
 
 bool _OpenReaderWithBytes(
     vio::VideoReader & reader,
     NpBytes const & bytes,
+    std::string pix_fmt,
     std::pair<int, int> image_size
 ) {
-    return reader.open(bytes.data(), bytes.size(), image_size);
+    pix_fmt = _CheckInputPixFmt(pix_fmt);
+    if (pix_fmt.length() == 0) return false;
+    return reader.open(bytes.data(), bytes.size(), pix_fmt, image_size);
 }
 
 bool _OpenWriter(
@@ -63,6 +77,9 @@ bool _OpenWriter(
     double crf,
     int32_t g
 ) {
+    pix_fmt = _CheckInputPixFmt(pix_fmt);
+    if (pix_fmt.length() == 0) return false;
+
     vio::VideoConfig cfg;
     cfg.width = image_size.first;
     cfg.height = image_size.second;
@@ -75,6 +92,11 @@ bool _OpenWriter(
 }
 
 bool _Write(vio::VideoWriter & self, NpImage const & image) {
+    if (!self.isOpened()) {
+        spdlog::error("[videoio,pybind][VideoWriter] Not opened!");
+        return false;
+    }
+
     uint8_t const * data = nullptr;
     uint32_t linesize = 0;
     uint32_t height = 0;
@@ -149,8 +171,8 @@ PYBIND11_MODULE(videoio, m) {
         .def_property_readonly("height", [](vio::VideoReader const & r) { return r.imageSize().second; })
         // We return tbr rather than fps here.
         .def_property_readonly("fps", [](vio::VideoReader const & r) { auto tbr = r.tbr(); return (double)tbr.num / (double)tbr.den; })
-        .def("open", &_OpenReaderWithFile, "filename"_a, "image_size"_a=std::pair<int, int>(0, 0))
-        .def("open_bytes", &_OpenReaderWithBytes, "bytes"_a, "image_size"_a=std::pair<int, int>(0, 0))
+        .def("open", &_OpenReaderWithFile, "filename"_a, "pix_fmt"_a="bgr24", "image_size"_a=std::pair<int, int>(0, 0))
+        .def("open_bytes", &_OpenReaderWithBytes, "bytes"_a, "pix_fmt"_a="bgr24", "image_size"_a=std::pair<int, int>(0, 0))
         .def("seek_frame", &vio::VideoReader::seekByFrame)
         .def("seek_msec", &vio::VideoReader::seekByTime)
         .def("release", &vio::VideoReader::close)

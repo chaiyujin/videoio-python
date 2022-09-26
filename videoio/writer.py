@@ -60,15 +60,15 @@ class VideoWriter(object):
         self._tmp_vpath: str = os.path.join(os.path.dirname(output_path), "_" + os.path.basename(output_path))
 
     @property
-    def output_path(self):
+    def output_path(self) -> str:
         return self._output_path
 
     @property
-    def tmp_video_path(self):
+    def tmp_video_path(self) -> str:
         return self._tmp_vpath
 
     @property
-    def audio_source(self):
+    def audio_source(self) -> Optional[str]:
         return self._audio_source
 
     def write(self, frame: npt.NDArray[Any]) -> bool:
@@ -94,8 +94,8 @@ class VideoWriter(object):
             move(self._tmp_vpath, self._output_path)
         else:
             extra_kwargs = dict(shortest=None, vcodec="libx264", crf=self._cfg["crf"], acodec="aac")
-            in_audio = ffmpeg.input(self._audio_source)
-            in_video = ffmpeg.input(self._tmp_vpath)
+            in_audio = ffmpeg.input(self._audio_source).audio
+            in_video = ffmpeg.input(self._tmp_vpath).video
             cmd = ffmpeg.output(in_audio, in_video, self._output_path, **extra_kwargs)
             cmd.run(overwrite_output=True, quiet=True)
             if os.path.exists(self._tmp_vpath):

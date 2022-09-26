@@ -1,3 +1,6 @@
+extern "C" {
+#include <libavutil/pixdesc.h>
+}
 #include "log.hpp"
 #include "video_reader.hpp"
 
@@ -15,28 +18,42 @@ void VideoReader::close() {
     this->_cleanup();
 }
 
-bool VideoReader::open(std::string const & filename, std::pair<int32_t, int32_t> const & target_resolution) {
+bool VideoReader::open(std::string const & filename, std::string target_pix_fmt, std::pair<int32_t, int32_t> const & target_resolution) {
     this->close();  // make sure everything is cleaned up.
 
     // 1. Create a file IO.
     // TODO: handle file io error?
     this->ioctx_ = std::unique_ptr<AVIOBase>(new AVFileIOContext(filename));
 
-    return this->_open(target_resolution);
+    if (!this->_open(target_pix_fmt, target_resolution)) {
+        this->_cleanup();
+        return false;
+    }
+    return true;
 }
 
-
-bool VideoReader::open(const uint8_t * data, size_t size, std::pair<int32_t, int32_t> const & target_resolution) {
+bool VideoReader::open(const uint8_t * data, size_t size, std::string target_pix_fmt, std::pair<int32_t, int32_t> const & target_resolution) {
     this->close();  // make sure everything is cleaned up.
 
     // 1. Create a file IO.
     // TODO: handle file io error?
     this->ioctx_ = std::unique_ptr<AVIOBase>(new AVMemoryIOContext(data, size));
 
-    return this->_open(target_resolution);
+    if (!this->_open(target_pix_fmt, target_resolution)) {
+        this->_cleanup();
+        return false;
+    }
+    return true;
 }
 
-bool VideoReader::_open(std::pair<int32_t, int32_t> const & target_resolution) {
+bool VideoReader::_open(std::string target_pix_fmt, std::pair<int32_t, int32_t> const & target_resolution) {
+    // Target pix_fmt
+    AVPixelFormat tar_pix_fmt = av_get_pix_fmt(target_pix_fmt.c_str());
+    if (tar_pix_fmt == AV_PIX_FMT_NONE) {
+        spdlog::error("[vio::VideoReader]: target pix_fmt '{}' is invalid!", target_pix_fmt);
+        return false;
+    }
+
     // Create a reading format context.
     this->fmtctx_ = std::unique_ptr<AVFormatContext, void(*)(AVFormatContext *)>(
         avformat_alloc_context(), [](AVFormatContext * p) { avformat_free_context(p); }
@@ -48,7 +65,6 @@ bool VideoReader::_open(std::pair<int32_t, int32_t> const & target_resolution) {
     int ret = avformat_open_input(&fmt, NULL, NULL, NULL);
     if (ret < 0) {
         spdlog::error("[vio::VideoReader]: Cannot open input: {}.", av_err2str(ret));
-        this->_cleanup();
         return false;
     }
 
@@ -59,7 +75,6 @@ bool VideoReader::_open(std::pair<int32_t, int32_t> const & target_resolution) {
             "[vio::VideoReader]: Could not find stream information: {}.",
             av_err2str(ret)
         );
-        this->_cleanup();
         return false;
     }
 
@@ -69,8 +84,7 @@ bool VideoReader::_open(std::pair<int32_t, int32_t> const & target_resolution) {
     if (fmt->start_time != AV_NOPTS_VALUE) { this->start_time_ = AVTime2MS(fmt->start_time); }
     if (fmt->duration   != AV_NOPTS_VALUE) { this->duration_   = AVTime2MS(fmt->duration  ); }
 
-    if (!this->_findMainStream(target_resolution)) {
-        this->_cleanup();
+    if (!this->_findMainStream(tar_pix_fmt, target_resolution)) {
         return false;
     }
 
@@ -87,7 +101,7 @@ bool VideoReader::_open(std::pair<int32_t, int32_t> const & target_resolution) {
     return true;
 }
 
-bool VideoReader::_findMainStream(std::pair<int32_t, int32_t> const & target_resolution) {
+bool VideoReader::_findMainStream(AVPixelFormat tar_pix_fmt, std::pair<int32_t, int32_t> const & target_resolution) {
     int ret = 0;
     auto * fmt = this->fmtctx_.get();
 
@@ -148,7 +162,6 @@ bool VideoReader::_findMainStream(std::pair<int32_t, int32_t> const & target_res
 
             // pix fmt
             AVPixelFormat dec_pix_fmt = codec_ctx->pix_fmt;
-            AVPixelFormat tar_pix_fmt = AV_PIX_FMT_RGB24;
             int target_width  = (target_resolution.first  == 0) ? codec_ctx->width  : target_resolution.first;
             int target_height = (target_resolution.second == 0) ? codec_ctx->height : target_resolution.second;
 

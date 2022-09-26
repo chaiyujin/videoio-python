@@ -24,8 +24,8 @@ public:
         this->close();
     }
 
-    bool open(std::string const & filename, std::pair<int32_t, int32_t> const & target_resolution = {0, 0});
-    bool open(const uint8_t * data, size_t size, std::pair<int32_t, int32_t> const & target_resolution = {0, 0});
+    bool open(std::string const & filename, std::string target_pix_fmt = "bgr24", std::pair<int32_t, int32_t> const & target_resolution = {0, 0});
+    bool open(const uint8_t * data, size_t size, std::string target_pix_fmt = "bgr24", std::pair<int32_t, int32_t> const & target_resolution = {0, 0});
     bool isOpened() const { return main_stream_data_ != nullptr; }
     void close();
 
@@ -78,8 +78,8 @@ public:
     bool seek_to_pts_;
     int64_t dts_pts_delta_;
 
-    auto _open(std::pair<int32_t, int32_t> const & target_resolution) -> bool;
-    auto _findMainStream(std::pair<int32_t, int32_t> const & target_resolution) -> bool;
+    auto _open(std::string target_pix_fmt, std::pair<int32_t, int32_t> const & target_resolution) -> bool;
+    auto _findMainStream(AVPixelFormat tar_pix_fmt, std::pair<int32_t, int32_t> const & target_resolution) -> bool;
     auto _getFrame() -> bool;
     auto _readPacket(AVPacket *) -> int;
     void _convertPixFmt();

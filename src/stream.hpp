@@ -13,14 +13,14 @@ extern "C" {
 namespace vio {
 
 struct VideoConfig {
-    int32_t    width = 0;
-    int32_t    height = 0;
-    AVRational fps = {1, 0};
-    int32_t    rotation = 0;
+    int32_t     width = 0;
+    int32_t     height = 0;
+    AVRational  fps = {1, 0};
+    int32_t     rotation = 0;
     std::string pix_fmt = "bgr24";
-    int32_t    bitrate = 0;
-    double     crf = 23.0;
-    int32_t    g = 12;  // gop_size, the number of pictures in a group of pictures, or 0 for intra_only (larger but quicker seeking).
+    int32_t     bitrate = 0;
+    double      crf = 23.0;
+    int32_t     g = 12;  // gop_size, the number of pictures in a group of pictures, or 0 for intra_only (larger but quicker seeking).
 };
 
 /**
