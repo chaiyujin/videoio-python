@@ -69,6 +69,7 @@ reader.release()
 You can install following packages with `pip` or `conda`.
 - numpy
 - pybind11
+- cmake
 
 ## FFmpeg
 **MacOS**: `brew install ffmpeg`. The installed ffmpeg can be found in the directory `/usr/local/Cellar/ffmpeg/`.

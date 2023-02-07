@@ -35,11 +35,12 @@ def find_best_ffmpeg_home():
         sys_name = platform.system()
         if sys_name == "Darwin":
             brew_dirs: List[str] = []
-            for root, subdirs, _ in os.walk("/usr/local/Cellar"):
-                for subdir in subdirs:
-                    dirpath = os.path.join(root, subdir)
-                    if re.match(r"^/usr/local/Cellar/ffmpeg.*/\d\.\d\.\d[_\d]*$", dirpath):
-                        brew_dirs.append(dirpath)
+            for cellar_root in ("/usr/local/Cellar", "/opt/homebrew/Cellar"):
+                for root, subdirs, _ in os.walk(cellar_root):
+                    for subdir in subdirs:
+                        dirpath = os.path.join(root, subdir)
+                        if re.match(r"^.*Cellar/ffmpeg.*/\d\.\d\.\d[_\d]*$", dirpath):
+                            brew_dirs.append(dirpath)
             brew_dirs = sorted(brew_dirs, key=lambda x: os.path.basename(x), reverse=True)
             search_list.extend(brew_dirs)
         elif sys_name == "Linux":

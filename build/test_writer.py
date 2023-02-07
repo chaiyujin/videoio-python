@@ -1,17 +1,8 @@
 import numpy as np
+from tqdm import trange
 from videoio import VideoWriter, VideoReader
 
-writer = VideoWriter()
-writer.set_log_level("error")
-writer.open("test.mp4", (640, 480), 30, pix_fmt="bgr")
-im = np.full((480, 640, 3), 120, np.uint8)
-for i in range(100):
-    writer.write(im)
-writer.close()
-
-reader = VideoReader()
-reader.open("test.mp4", pix_fmt="bgr")
-print(f"fps {reader.fps}, duration {reader.duration}, n_frames {reader.n_frames}")
+reader = VideoReader("test.mp4")
 frames = []
 
 while True:
@@ -20,3 +11,13 @@ while True:
         break
     frames.append(im)
 print(len(frames))
+
+reader.seek_frame(0)
+writer = VideoWriter("test_write.mp4", fps=reader.fps, audio_source="test.mp4", quality="high")
+for i in trange(reader.frame_count, desc="write video"):
+    got, im = reader.read()
+    if not got or im is None:
+        break
+    writer.write(im)
+writer.release()
+reader.release()
