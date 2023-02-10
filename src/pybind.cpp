@@ -174,7 +174,7 @@ PYBIND11_MODULE(videoio, m) {
         .def("open", &_OpenReaderWithFile, "filename"_a, "pix_fmt"_a="bgr24", "image_size"_a=std::pair<int, int>(0, 0))
         .def("open_bytes", &_OpenReaderWithBytes, "bytes"_a, "pix_fmt"_a="bgr24", "image_size"_a=std::pair<int, int>(0, 0))
         .def("seek_frame", &vio::VideoReader::seekByFrame)
-        .def("seek_msec", &vio::VideoReader::seekByTime)
+        .def("seek_msec", [](vio::VideoReader & r, float msec) -> bool { return r.seekByTime(vio::Millisecond((int64_t)std::round(msec))); })
         .def("release", &vio::VideoReader::close)
         .def("close", &vio::VideoReader::close)
         .def("read", &_Read, py::return_value_policy::move)
