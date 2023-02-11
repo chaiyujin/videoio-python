@@ -9,6 +9,10 @@ class _VideoReader():
     def __init__(self):
         self._reader = CPP_VideoReader()
 
+    def open(self, filename: str, pix_fmt: str = "bgr"):
+        self._reader.release()
+        self._reader.open(filename, pix_fmt=pix_fmt)
+
     def read(self) -> Tuple[bool, Optional[npt.NDArray[np.uint8]]]:
         got, im = self._reader.read()
         if not got:
@@ -71,9 +75,10 @@ class _VideoReader():
 
 
 class VideoReader(_VideoReader):
-    def __init__(self, filename: str, pix_fmt: str = "bgr"):
+    def __init__(self, filename: str = "", pix_fmt: str = "bgr"):
         super().__init__()
-        self._reader.open(filename, pix_fmt=pix_fmt)
+        if len(filename) > 0:
+            self._reader.open(filename, pix_fmt=pix_fmt)
 
 
 class BytesVideoReader(_VideoReader):
