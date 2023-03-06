@@ -89,7 +89,7 @@ class VideoWriter(object):
             self._writer = CPP_VideoWriter()
             self._writer.open(self._tmp_vpath, (w, h), **self._cfg)
 
-        return self._writer.write(frame)
+        return self._writer.write(frame[..., :3])
 
     def close(self):
         if self._writer is None:
