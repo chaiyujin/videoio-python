@@ -39,7 +39,7 @@ def find_best_ffmpeg_home():
                 for root, subdirs, _ in os.walk(cellar_root):
                     for subdir in subdirs:
                         dirpath = os.path.join(root, subdir)
-                        if re.match(r"^.*Cellar/ffmpeg.*/\d\.\d\.\d[_\d]*$", dirpath):
+                        if re.match(r"^.*Cellar/ffmpeg.*/[_\.\d]+$", dirpath):
                             brew_dirs.append(dirpath)
             brew_dirs = sorted(brew_dirs, key=lambda x: os.path.basename(x), reverse=True)
             search_list.extend(brew_dirs)
