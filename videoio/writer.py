@@ -17,7 +17,7 @@ class VideoWriter(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any):
         self.release()
 
     def __init__(
